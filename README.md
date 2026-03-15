@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Hackathon Event Grading System
 
 A comprehensive web-based system for managing hackathon events, assigning panelists, and collecting grades for participants.
@@ -319,3 +320,7 @@ For issues or questions, please verify:
 2. Database is properly configured
 3. Backend server is running
 4. Correct URLs are being used in frontend
+=======
+# GRCHackaton
+GRCHackaton Grading System
+>>>>>>> 1c6a71ed8bf8b6c303e81bb7747e997326522ae8
