@@ -26,6 +26,7 @@ function displayStudentName() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    enforceMobileSidebarLayout();
     checkStudentAuth();
 
     const loginForm = document.getElementById('loginForm');
@@ -57,6 +58,28 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAssignedEvents();
     }
 });
+
+function enforceMobileSidebarLayout() {
+    const isMobileLike = window.matchMedia('(max-width: 1024px), (hover: none) and (pointer: coarse)').matches;
+    const sidebar = document.querySelector('.sidebar');
+    const main = document.querySelector('.main-content');
+    if (!sidebar || !main || !isMobileLike) return;
+
+    sidebar.style.display = 'flex';
+    sidebar.style.position = 'sticky';
+    sidebar.style.top = '0';
+    sidebar.style.width = '100%';
+    sidebar.style.height = 'auto';
+    sidebar.style.maxHeight = 'none';
+    sidebar.style.zIndex = '1200';
+
+    main.style.marginLeft = '0';
+    main.style.width = '100%';
+    main.style.maxWidth = '100%';
+}
+
+window.addEventListener('resize', enforceMobileSidebarLayout);
+window.addEventListener('orientationchange', enforceMobileSidebarLayout);
 
 async function handleLogin(e) {
     e.preventDefault();

@@ -1,9 +1,29 @@
 // Panelist Main Script
 
 document.addEventListener('DOMContentLoaded', () => {
+    enforceMobileSidebarLayout();
     checkPanelistAuth();
     initializeEventListeners();
 });
+
+function enforceMobileSidebarLayout() {
+    const isMobileLike = window.matchMedia('(max-width: 1024px), (hover: none) and (pointer: coarse)').matches;
+    const sidebar = document.querySelector('.sidebar');
+    const main = document.querySelector('.main-content');
+    if (!sidebar || !main || !isMobileLike) return;
+
+    sidebar.style.display = 'flex';
+    sidebar.style.position = 'sticky';
+    sidebar.style.top = '0';
+    sidebar.style.width = '100%';
+    sidebar.style.height = 'auto';
+    sidebar.style.maxHeight = 'none';
+    sidebar.style.zIndex = '1200';
+
+    main.style.marginLeft = '0';
+    main.style.width = '100%';
+    main.style.maxWidth = '100%';
+}
 
 function checkPanelistAuth() {
     const token = localStorage.getItem('panelistToken');
@@ -315,10 +335,14 @@ function initializePasswordToggles() {
 // Load events on page ready
 document.addEventListener('DOMContentLoaded', () => {
     const eventsSection = document.getElementById('eventsSection');
+    enforceMobileSidebarLayout();
     if (eventsSection) {
         loadAssignedEvents();
     }
 });
+
+window.addEventListener('resize', enforceMobileSidebarLayout);
+window.addEventListener('orientationchange', enforceMobileSidebarLayout);
 
 function formatDate(dateString) {
     if (!dateString) return null;
