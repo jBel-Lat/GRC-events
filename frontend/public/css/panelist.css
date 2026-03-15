@@ -327,11 +327,67 @@
 }
 
 @media (max-width: 600px) {
+    .container {
+        flex-direction: column;
+    }
+
     .sidebar {
-        display: none;
+        position: sticky;
+        top: 0;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 0.8rem 0.9rem;
+        z-index: 1100;
+    }
+
+    .sidebar-header h2 {
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .sidebar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+    }
+
+    .nav-item {
+        flex: 1 1 100%;
+        justify-content: center;
+        text-align: center;
+        padding: 0.6rem 0.55rem;
+        font-size: 0.9rem;
+    }
+
+    .nav-item:hover {
+        transform: none;
+    }
+
+    .sidebar-footer {
+        margin-top: 0.75rem;
     }
 
     .main-content {
         margin-left: 0;
+        padding: 0.9rem;
+    }
+
+    .section-header {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.7rem;
+    }
+
+    .event-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .grading-form-container {
+        max-height: none;
     }
 }
