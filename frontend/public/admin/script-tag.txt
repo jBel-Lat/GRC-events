@@ -1,0 +1,2 @@
+<!-- Add this line before closing </body> tag -->
+    <script src="/admin/js/elimination.js"></script>

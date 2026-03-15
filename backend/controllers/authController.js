@@ -1,0 +1,222 @@
+const pool = require('../config/database');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { ERROR_MESSAGES, SUCCESS_MESSAGES } = require('../config/constants');
+
+exports.adminLogin = async (req, res) => {
+    try {
+        const { username, password } = req.body;
+
+        if (!username || !password) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.MISSING_REQUIRED_FIELDS
+            });
+        }
+
+        const connection = await pool.getConnection();
+        const [rows] = await connection.query('SELECT * FROM admin WHERE username = ?', [username]);
+        connection.release();
+
+        if (rows.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: ERROR_MESSAGES.INVALID_CREDENTIALS
+            });
+        }
+
+        const admin = rows[0];
+        const passwordMatch = await bcrypt.compare(password, admin.password);
+
+        if (!passwordMatch) {
+            return res.status(401).json({
+                success: false,
+                message: ERROR_MESSAGES.INVALID_CREDENTIALS
+            });
+        }
+
+        const token = jwt.sign(
+            {
+                id: admin.id,
+                username: admin.username,
+                role: 'admin'
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
+            token,
+            user: {
+                id: admin.id,
+                username: admin.username,
+                full_name: admin.full_name
+            }
+        });
+    } catch (error) {
+        console.error('Admin login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+};
+
+exports.panelistLogin = async (req, res) => {
+    try {
+        const { username, password } = req.body;
+
+        if (!username || !password) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.MISSING_REQUIRED_FIELDS
+            });
+        }
+
+        const connection = await pool.getConnection();
+        const [rows] = await connection.query('SELECT * FROM panelist WHERE username = ?', [username]);
+        connection.release();
+
+        if (rows.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: ERROR_MESSAGES.INVALID_CREDENTIALS
+            });
+        }
+
+        const panelist = rows[0];
+
+        if (panelist.status !== 'active') {
+            return res.status(403).json({
+                success: false,
+                message: 'Your account is inactive'
+            });
+        }
+
+        const passwordMatch = await bcrypt.compare(password, panelist.password);
+
+        if (!passwordMatch) {
+            return res.status(401).json({
+                success: false,
+                message: ERROR_MESSAGES.INVALID_CREDENTIALS
+            });
+        }
+
+        const token = jwt.sign(
+            {
+                id: panelist.id,
+                username: panelist.username,
+                role: 'panelist'
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
+            token,
+            user: {
+                id: panelist.id,
+                username: panelist.username,
+                full_name: panelist.full_name
+            }
+        });
+    } catch (error) {
+        console.error('Panelist login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+};
+
+// Student login (no password, use name + student_number pair)
+exports.studentLogin = async (req, res) => {
+    try {
+        const { name, student_number } = req.body;
+
+        if (!name || !student_number) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.MISSING_REQUIRED_FIELDS
+            });
+        }
+
+        const connection = await pool.getConnection();
+        let [rows] = await connection.query(
+            'SELECT * FROM student WHERE name = ? AND student_number = ?',
+            [name, student_number]
+        );
+
+        // If student doesn't exist, try to create one
+        if (rows.length === 0) {
+            try {
+                // Get a valid admin ID to use as creator (find any admin)
+                const [admins] = await connection.query('SELECT id FROM admin LIMIT 1');
+                const creatorId = admins.length > 0 ? admins[0].id : 1;
+
+                await connection.query(
+                    'INSERT INTO student (name, student_number, status, created_by) VALUES (?, ?, ?, ?)',
+                    [name, student_number, 'active', creatorId]
+                );
+                // Fetch the newly created student
+                [rows] = await connection.query(
+                    'SELECT * FROM student WHERE name = ? AND student_number = ?',
+                    [name, student_number]
+                );
+            } catch (insertErr) {
+                console.error('Auto-create student failed:', insertErr.message);
+                // Fall through and return credentials error
+            }
+        }
+
+        connection.release();
+
+        if (rows.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message: ERROR_MESSAGES.INVALID_CREDENTIALS
+            });
+        }
+
+        const student = rows[0];
+
+        if (student.status !== 'active') {
+            return res.status(403).json({
+                success: false,
+                message: 'Your account is inactive'
+            });
+        }
+
+        // create token
+        const token = jwt.sign(
+            {
+                id: student.id,
+                student_number: student.student_number,
+                role: 'student'
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
+            token,
+            user: {
+                id: student.id,
+                name: student.name,
+                student_number: student.student_number
+            }
+        });
+    } catch (error) {
+        console.error('Student login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+};

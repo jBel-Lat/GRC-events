@@ -1,0 +1,12 @@
+{
+  "name": "hackathon-grading-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for hackathon grading system",
+  "scripts": {
+    "serve": "http-server public -p 8000",
+    "start": "http-server public -p 8000 -o"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

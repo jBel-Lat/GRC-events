@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Events - Student Portal</title>
+    <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/panelist.css">
+</head>
+<body>
+    <div class="logo-strip">
+        <img src="/img/grc.png" alt="GRC">
+        <img src="/img/global.png" alt="Global">
+        <img src="/img/college of com.png" alt="College of Com">
+    </div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="user-block">
+                    <div id="userDisplay" class="user-display user-display-strong"></div>
+                    <div class="user-display-role">Student</div>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-section="events">
+                    <span class="icon">📋</span> My Events
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="logoutBtn" class="logout-btn">Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Events Section -->
+            <section id="eventsSection" class="content-section active">
+                <div class="section-header">
+                    <h1>Assigned Events</h1>
+                </div>
+                <div id="eventsList" class="events-list"></div>
+            </section>
+
+            <!-- Participants Section -->
+            <section id="participantsSection" class="content-section">
+                <div class="section-header">
+                    <button id="backToEventsBtn" class="btn btn-secondary">← Back</button>
+                    <h1 id="eventTitle"></h1>
+                </div>
+                <div id="participantsList" class="participants-list"></div>
+            </section>
+
+            <!-- Grading Section -->
+            <section id="gradingSection" class="content-section">
+                <div class="section-header">
+                    <button id="backToParticipantsBtn" class="btn btn-secondary">← Back</button>
+                    <div>
+                        <h1 id="participantName"></h1>
+                        <div id="participantTeamName" class="text-muted" style="font-size:0.9rem;"></div>
+                    </div>
+                </div>
+                <div id="gradingForm" class="grading-form-container"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/student/js/api.js"></script>
+    <script src="/student/js/student.js"></script>
+</body>
+</html>

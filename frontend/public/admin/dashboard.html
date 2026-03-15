@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Hackathon Grading System</title>
+    <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+    <div class="logo-strip">
+        <img src="/img/grc.png" alt="GRC">
+        <img src="/img/global.png" alt="Global">
+        <img src="/img/college of com.png" alt="College of Com">
+    </div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Admin Panel</h2>
+                <div class="user-block">
+                    <div id="userDisplay" class="user-display user-display-strong"></div>
+                    <div id="userRole" class="user-display-role">Admin</div>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-item-group">
+                    <button class="nav-item active" data-section="events">
+                        <span class="icon">📋</span> Events
+                    </button>
+                </div>
+                <div class="nav-item-group">
+                    <button class="nav-item" data-section="panelists">
+                        <span class="icon">👥</span> Manage Panelists
+                    </button>
+                </div>
+                <div class="nav-item-group">
+                    <button class="nav-item" data-section="students">
+                        <span class="icon">🎓</span> Manage Students
+                    </button>
+                </div>
+                <div class="nav-item-group">
+                    <button class="nav-item" data-section="tournament">
+                        <span class="icon">🏆</span> Tournament
+                    </button>
+                </div>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="logoutBtn" class="logout-btn">Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Events Section -->
+            <section id="eventsSection" class="content-section active">
+                <div class="section-header">
+                    <h1>Events Management</h1>
+                    <div class="header-actions">
+                        <input type="text" id="eventsSearchBox" name="eventsSearch" class="search-box" placeholder="Search events...">
+                        <button id="addEventBtn" class="btn btn-primary">+ Add Event</button>
+                    </div>
+                </div>
+                <div id="eventsList" class="events-list"></div>
+            </section>
+
+            <!-- Event Details Section -->
+            <section id="eventDetailsSection" class="content-section">
+                <div class="section-header">
+                    <button id="backToEventsBtn" class="btn btn-secondary">← Back</button>
+                    <h1 id="eventTitle"></h1>
+                    <div class="header-actions">
+                        <button id="deleteEventBtn" class="btn btn-danger">Delete Event</button>
+                    </div>
+                </div>
+
+                <!-- Event scoring weights -->
+                <div class="section" style="margin: 12px 0; display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                    <div>
+                        <label for="eventStudentWeightInput"><strong>Student Weight %</strong></label>
+                        <input type="number" id="eventStudentWeightInput" name="eventStudentWeightInput" min="0" max="100" style="width: 140px; padding: 8px; border: 1px solid #ccc; border-radius: 8px;">
+                    </div>
+                    <div>
+                        <label for="eventPanelistWeightInput"><strong>Panelist Weight %</strong></label>
+                        <input type="number" id="eventPanelistWeightInput" name="eventPanelistWeightInput" min="0" max="100" style="width: 140px; padding: 8px; border: 1px solid #ccc; border-radius: 8px;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <span id="eventWeightSum" style="font-size:0.9em; color:#666;">100% total</span>
+                        <button id="updateWeightsBtnEvent" class="btn btn-primary" style="width: fit-content;">Update Weights</button>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <button id="downloadParticipantTemplateBtnTop" class="btn btn-secondary">Download Template</button>
+                        <input type="file" id="importParticipantsInput" accept=".xlsx" style="display:none;">
+                        <button id="importParticipantsBtn" class="btn btn-secondary">Import Participants (Excel)</button>
+                    </div>
+                </div>
+
+                <div class="event-details-container">
+                    <!-- Participants Section -->
+                    <div class="details-section">
+                        <div class="section-header">
+                            <h2>Participants</h2>
+                            <div class="header-actions">
+                                <input type="text" id="participantsSearchBox" name="participantsSearch" class="search-box" placeholder="Search participants...">
+                                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                    <select id="participantSortDirection" class="search-box" style="min-width:140px; padding:0.45rem 0.8rem;">
+                                        <option value="desc">Highest to Lowest</option>
+                                        <option value="asc">Lowest to Highest</option>
+                                    </select>
+                                    <input type="number" id="participantsLimitInput" name="participantsLimit" class="search-box" placeholder="Limit (e.g., 10)" min="1" style="width:120px; padding:0.45rem 0.8rem;">
+                                    <button id="applyParticipantSortBtn" class="btn btn-secondary">Apply</button>
+                                </div>
+                                <button id="deleteAllParticipantsBtn" class="btn btn-danger" style="background:#b33b32;">Delete All</button>
+                                <button id="addParticipantBtn" class="btn btn-primary">+ Add Participant</button>
+                            </div>
+                        </div>
+                        <div id="participantsList" class="participants-list"></div>
+                    </div>
+
+                    <!-- Criteria Section -->
+                    <div class="details-section">
+                        <div class="section-header">
+                            <h2>Grading Criteria</h2>
+                            <button id="addCriteriaBtn" class="btn btn-primary">+ Add Criteria</button>
+                        </div>
+                        <div id="criteriaList" class="criteria-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Panelist Management Section -->
+            <section id="panelistsSection" class="content-section">
+                <div class="section-header">
+                    <h1>Panelist Management</h1>
+                    <div class="header-actions">
+                        <input type="text" id="panelistsSearchBox" name="panelistsSearch" class="search-box" placeholder="Search panelists...">
+                        <button id="addPanelistBtn" class="btn btn-primary">+ Add Panelist</button>
+                    </div>
+                </div>
+                <div id="panelistsList" class="panelists-list"></div>
+            </section>
+
+            <!-- Student Management Section -->
+            <section id="studentsSection" class="content-section">
+                <div class="section-header">
+                    <h1>Student Management</h1>
+                    <div class="header-actions">
+                        <input type="text" id="studentsSearchBox" name="studentsSearch" class="search-box" placeholder="Search students...">
+                        <button id="bulkManageEventsBtn" class="btn btn-primary" style="display:none;">📋 Manage Events (Bulk)</button>
+                    </div>
+                </div>
+                <div id="studentsList" class="students-list"></div>
+            </section>
+
+            <!-- Participant Details Section -->
+            <section id="participantDetailsSection" class="content-section">
+                <div class="section-header">
+                    <button id="backToEventDetailsBtn" class="btn btn-secondary">← Back</button>
+                    <h1 id="participantName"></h1>
+                    <button id="deleteParticipantBtn" class="btn btn-danger">Delete Participant</button>
+                </div>
+                <div id="participantGradesBreakdown" class="grades-breakdown"></div>
+            </section>
+            <!-- Tournament Section -->
+            <section id="tournamentSection" class="content-section">
+                <div class="section-header">
+                    <h1>Tournament Manager</h1>
+                    <div class="header-actions">
+                        <button id="createTournamentBtn" class="btn btn-primary">+ New Tournament</button>
+                    </div>
+                </div>
+                <div class="section-body">
+                    <!-- Tournament Selection -->
+                    <div class="tournament-setup">
+                        <div style="margin-bottom: 20px;">
+                            <label for="tournamentEventSelect" style="display: block; margin-bottom: 8px; font-weight: bold;">Select Tournament Event:</label>
+                            <select id="tournamentEventSelect" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                                <option value="">-- Choose an event --</option>
+                            </select>
+                        </div>
+
+                        <!-- Teams Management -->
+                        <div id="teamsManagementArea" style="display: none; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <h3>Teams in Tournament</h3>
+                                <button id="addTeamToTournamentBtn" class="btn btn-secondary">+ Add Team</button>
+                            </div>
+                            <div id="tournamentTeamsList" class="teams-list"></div>
+                        </div>
+
+                        <!-- Bracket Generation -->
+                        <div id="bracketGenerationArea" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+                            <button id="generateBracketBtn" class="btn btn-primary" style="margin-bottom: 20px;">Generate Shuffled Bracket</button>
+                            <div id="bracketContainer" class="bracket"></div>
+                        </div>
+                    </div>
+
+                    <div id="tournamentMessage" style="margin-top: 20px; padding: 12px; display: none; border-radius: 4px;"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    
+    <!-- Add Event Modal -->
+    <div id="addEventModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Event</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="addEventForm">
+                <div class="form-group">
+                    <label for="eventName">Event Name *</label>
+                    <input type="text" id="eventName" name="eventName" required>
+                </div>
+                <div class="form-group">
+                    <label for="eventDescription">Description</label>
+                    <textarea id="eventDescription" name="eventDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="startDate">Start Date</label>
+                    <input type="date" id="startDate" name="startDate">
+                </div>
+                <div class="form-group">
+                    <label for="endDate">End Date</label>
+                    <input type="date" id="endDate" name="endDate">
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="isTournamentEvent" name="isTournamentEvent" style="width: auto; cursor: pointer;">
+                        <span>This is a Tournament Event</span>
+                    </label>
+                    <p id="tournamentNote" style="display: none; font-size: 0.9em; color: #667eea; margin-top: 4px;">
+                        ✓ Grading criteria are optional for tournament events
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label>Grading Criteria <span id="criteriaRequired" style="color: red;">*</span></label>
+                    <div id="criteriaFieldsContainer"></div>
+                    <button type="button" id="addCriteriaFieldBtn" class="btn btn-secondary" style="margin-top: 10px;">+ Add Criteria</button>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Create Event</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Participant Modal -->
+    <div id="addParticipantModal" class="modal no-close-on-outside">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Participant</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="addParticipantForm">
+                <div class="form-group">
+                    <label for="teamNameInput">Team Name *</label>
+                    <input type="text" id="teamNameInput" name="teamName" placeholder="e.g., Team Alpha" required>
+                </div>
+                <div class="form-group">
+                    <label>Enrollment Count: <span id="teamEnrollmentCount">0</span></label>
+                </div>
+                <div class="form-group">
+                    <label>Team Members *</label>
+                    <div id="membersContainer">
+                        <div class="member-input-group">
+                            <input type="text" class="member-name-input" name="member_name[]" aria-label="Team member name" placeholder="Member name" required>
+                            <button type="button" class="btn btn-danger btn-small remove-member" style="display:none;">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" id="addMemberBtn" class="btn btn-secondary" style="margin-top: 10px;">+ Add Member</button>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Add Team Members</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Criteria Modal -->
+    <div id="addCriteriaModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Criteria</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="addCriteriaForm">
+                <div class="form-group">
+                    <label for="criteriaName">Criteria Name *</label>
+                    <input type="text" id="criteriaName" name="criteriaName" required>
+                </div>
+                <div class="form-group">
+                    <label for="criteriaPercentage">Percentage (%) *</label>
+                    <input type="number" id="criteriaPercentage" name="criteriaPercentage" min="0" max="100" required>
+                </div>
+                <div class="form-group">
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Add Criteria</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Panelist Modal -->
+    <div id="addPanelistModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Panelist</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="addPanelistForm">
+                <div class="form-group">
+                    <label for="panelistUsername">Username *</label>
+                    <input type="text" id="panelistUsername" name="panelistUsername" autocomplete="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="panelistPassword">Password *</label>
+                    <input type="password" id="panelistPassword" name="panelistPassword" autocomplete="new-password" required>
+                </div>
+                <div class="form-group">
+                    <label for="panelistFullName">Full Name *</label>
+                    <input type="text" id="panelistFullName" name="panelistFullName" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Create Panelist</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Panelist Modal -->
+    <div id="editPanelistModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Panelist</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="editPanelistForm">
+                <input type="hidden" id="editPanelistId" name="editPanelistId">
+                <div class="form-group">
+                    <label for="editPanelistUsername">Username *</label>
+                    <input type="text" id="editPanelistUsername" name="editPanelistUsername" autocomplete="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="editPanelistPassword">New Password (leave empty to keep current)</label>
+                    <input type="password" id="editPanelistPassword" name="editPanelistPassword" autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label for="editPanelistFullName">Full Name *</label>
+                    <input type="text" id="editPanelistFullName" name="editPanelistFullName" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Update Panelist</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Assign Panelist Modal -->
+    <div id="assignPanelistModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Assign Events</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="assignPanelistForm">
+                <div id="eventsCheckboxContainer"></div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Assign Events</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Student Modal -->
+    <div id="editStudentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Student</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="editStudentForm">
+                <input type="hidden" id="editStudentId" name="editStudentId">
+                <div class="form-group">
+                    <label for="editStudentName">Name *</label>
+                    <input type="text" id="editStudentName" name="editStudentName" required>
+                </div>
+                <div class="form-group">
+                    <label for="editStudentNumber">Student ID *</label>
+                    <input type="text" id="editStudentNumber" name="editStudentNumber" required>
+                </div>
+                <div class="form-group">
+                    <label for="editStudentStatus">Status</label>
+                    <select id="editStudentStatus" name="editStudentStatus">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Update Student</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Assign Student Modal -->
+    <div id="assignStudentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Assign Events</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <form id="assignStudentForm">
+                <div id="studentEventsCheckboxContainer"></div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Assign Events</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bulk Manage Events Modal -->
+    <div id="bulkManageEventsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Assign Events to All Students</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="bulkManageEventsForm">
+                <div class="form-group">
+                    <label><strong>Select Events to Assign to All Students:</strong></label>
+                    <div id="bulkEventCheckboxContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;"></div>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Assign to All Students</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    
+
+    <!-- Edit Participant Modal -->
+    <div id="editParticipantModal" class="modal no-close-on-outside">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Participant</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="editParticipantForm">
+                <input type="hidden" id="editParticipantId" name="editParticipantId">
+                <div class="form-group">
+                    <label for="editTeamName">Team Name *</label>
+                    <input type="text" id="editTeamName" name="editTeamName" required>
+                </div>
+                <div class="form-group">
+                    <label>Team Members *</label>
+                    <div id="editMembersContainer">
+                        <div class="member-input-group">
+                            <input type="text" class="member-name-input" name="edit_member_name[]" aria-label="Team member name" placeholder="Member name" required>
+                            <button type="button" class="btn btn-danger btn-small remove-member" style="display:none;">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" id="editAddMemberBtn" class="btn btn-secondary" style="margin-top: 10px;">+ Add Member</button>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Update Participant</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Tournament Modal -->
+    <div id="createTournamentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Tournament Event</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            <form id="createTournamentForm">
+                <div class="form-group">
+                    <label for="tournamentEventName">Tournament Name *</label>
+                    <input type="text" id="tournamentEventName" name="tournamentEventName" placeholder="e.g., Spring Chess Tournament" required>
+                </div>
+                <div class="form-group">
+                    <label for="tournamentEventDescription">Description</label>
+                    <textarea id="tournamentEventDescription" placeholder="Optional description" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Create Tournament</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Team to Tournament Modal -->
+    <div id="addTeamToTournamentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Team to Tournament</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <form id="addTeamToTournamentForm">
+                <div class="form-group">
+                    <label for="availableTeamsSelect">Select Team *</label>
+                    <select id="availableTeamsSelect" required>
+                        <option value="">-- Choose a team --</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Add Team</button>
+                    <button type="button" class="btn btn-secondary close-btn-action">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Participant Details Modal -->
+    <div id="participantDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 id="detailedParticipantName"></h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Tab Navigation -->
+                <div style="display: flex; gap: 10px; border-bottom: 2px solid #e0e0e0; margin-bottom: 20px;">
+                    <button class="breakdown-tab active" data-tab="overview" style="padding: 10px 20px; border: none; background: none; cursor: pointer; font-weight: 500; position: relative; top: 2px;">📊 Overview</button>
+                    <button class="breakdown-tab" data-tab="student" style="padding: 10px 20px; border: none; background: none; cursor: pointer; font-weight: 500;">🎓 Student Grades</button>
+                    <button class="breakdown-tab" data-tab="panelist" style="padding: 10px 20px; border: none; background: none; cursor: pointer; font-weight: 500;">👨‍⚖️ Panelist Grades</button>
+                    <button class="breakdown-tab" data-tab="members" style="padding: 10px 20px; border: none; background: none; cursor: pointer; font-weight: 500;">👥 Team Members</button>
+                </div>
+
+                <!-- Overview Tab -->
+                <div id="overviewTab" class="breakdown-tab-content">
+                    <div id="participantLoading" class="text-muted" style="display:none; margin-bottom:12px;">Loading...</div>
+                    <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 10px 0; color: #2e7d32;">Total Score</h3>
+                        <div style="font-size: 2em; font-weight: bold; color: #1b5e20;" id="totalScoreDisplay">--</div>
+                    </div>
+                    <div id="overviewContent"></div>
+                </div>
+
+                <!-- Student Grades Tab -->
+                <div id="studentTab" class="breakdown-tab-content" style="display: none;">
+                    <div id="studentGradesContent"></div>
+                </div>
+
+                <!-- Panelist Grades Tab -->
+                <div id="panelistTab" class="breakdown-tab-content" style="display: none;">
+                    <div id="panelistGradesContent"></div>
+                </div>
+
+                <!-- Team Members Tab -->
+                <div id="membersTab" class="breakdown-tab-content" style="display: none;">
+                    <div id="teamMembersContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/admin/js/api.js"></script>
+    <script src="/admin/js/events.js"></script>
+    <script src="/admin/js/panelists.js"></script>
+    <script src="/admin/js/students.js"></script>
+    <script src="/admin/js/admin.js"></script>
+    <script src="/admin/js/elimination.js"></script>
+    <script src="/admin/js/tournament.js"></script>
+</body>
+</html>
