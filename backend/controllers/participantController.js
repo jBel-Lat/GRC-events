@@ -442,6 +442,14 @@ exports.getPanelistParticipantGrades = async (req, res) => {
         const { event_id, participant_id } = req.params;
         const panelistId = req.user.id;
         const connection = await pool.getConnection();
+        const [participantRows] = await connection.query(
+            'SELECT id FROM participant WHERE id = ? AND event_id = ? LIMIT 1',
+            [participant_id, event_id]
+        );
+        if (!participantRows.length) {
+            connection.release();
+            return res.status(404).json({ success: false, message: ERROR_MESSAGES.PARTICIPANT_NOT_FOUND });
+        }
         let [criteria] = await connection.query(
             'SELECT id, criteria_name, percentage, max_score FROM criteria WHERE event_id = ?',
             [event_id]
@@ -469,14 +477,50 @@ exports.getPanelistParticipantGrades = async (req, res) => {
 
 exports.submitGrade = async (req, res) => {
     try {
-        const { participant_id, criteria_id, score } = req.body;
-        const panelistId = req.user.id;
+        const { event_id, participant_id, criteria_id, score } = req.body;
+        const panelistId = Number(req.user.id);
+        const parsedEventId = Number(event_id);
+        const parsedParticipantId = Number(participant_id);
+        const parsedCriteriaId = Number(criteria_id);
+        const parsedScore = Number(score);
+
+        if (!Number.isFinite(parsedEventId) || !Number.isFinite(parsedParticipantId) || !Number.isFinite(parsedCriteriaId) || !Number.isFinite(parsedScore)) {
+            return res.status(400).json({ success: false, message: ERROR_MESSAGES.MISSING_REQUIRED_FIELDS });
+        }
+
         const connection = await pool.getConnection();
+        const [participantRows] = await connection.query(
+            'SELECT id FROM participant WHERE id = ? AND event_id = ? LIMIT 1',
+            [parsedParticipantId, parsedEventId]
+        );
+        if (!participantRows.length) {
+            connection.release();
+            return res.status(404).json({ success: false, message: ERROR_MESSAGES.PARTICIPANT_NOT_FOUND });
+        }
+
+        const [criteriaRows] = await connection.query(
+            'SELECT id FROM criteria WHERE id = ? AND event_id = ? LIMIT 1',
+            [parsedCriteriaId, parsedEventId]
+        );
+        if (!criteriaRows.length) {
+            connection.release();
+            return res.status(400).json({ success: false, message: 'Invalid criteria for selected event' });
+        }
+
+        const [assignmentRows] = await connection.query(
+            'SELECT id FROM panelist_event_assignment WHERE panelist_id = ? AND event_id = ? LIMIT 1',
+            [panelistId, parsedEventId]
+        );
+        if (!assignmentRows.length) {
+            connection.release();
+            return res.status(403).json({ success: false, message: 'Panelist is not assigned to this event' });
+        }
+
         await connection.query(
             `INSERT INTO grade (participant_id, criteria_id, panelist_id, score)
              VALUES (?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE score = VALUES(score)`,
-            [participant_id, criteria_id, panelistId, score]
+            [parsedParticipantId, parsedCriteriaId, panelistId, parsedScore]
         );
         connection.release();
         res.json({ success: true, message: SUCCESS_MESSAGES.UPDATED_SUCCESS });

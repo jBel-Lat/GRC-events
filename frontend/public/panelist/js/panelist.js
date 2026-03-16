@@ -48,6 +48,9 @@ function displayPanelistName() {
     }
 }
 
+let selectedEventId = null;
+let selectedParticipantId = null;
+
 function initializeEventListeners() {
     const loginForm = document.getElementById('loginForm');
     const logoutBtn = document.getElementById('logoutBtn');
@@ -203,6 +206,8 @@ async function loadAssignedEvents() {
 }
 
 async function selectEvent(eventId, eventName) {
+    selectedEventId = Number(eventId);
+    selectedParticipantId = null;
     document.getElementById('eventTitle').textContent = eventName;
     
     const result = await panelistApi.getEventParticipants(eventId);
@@ -213,7 +218,7 @@ async function selectEvent(eventId, eventName) {
             participantsList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👥</div><p>No participants in this event</p></div>';
         } else {
             participantsList.innerHTML = result.data.map(participant => `
-                <div class="participant-card" onclick="selectParticipant(${eventId}, ${participant.id}, '${participant.participant_name}', '${participant.team_name || ''}')">
+                <div class="participant-card" onclick='selectParticipant(${eventId}, ${participant.id}, ${JSON.stringify(participant.participant_name)}, ${JSON.stringify(participant.team_name || "")})'>
                     <h3>${participant.participant_name}</h3>
                     <div class="event-card-info">
                         <div><strong>Team:</strong> ${participant.team_name || 'N/A'}</div>
@@ -230,6 +235,8 @@ async function selectEvent(eventId, eventName) {
 }
 
 async function selectParticipant(eventId, participantId, participantName, teamName) {
+    selectedEventId = Number(eventId);
+    selectedParticipantId = Number(participantId);
     document.getElementById('participantName').textContent = participantName;
     // display team name above grading
     const teamEl = document.getElementById('participantTeamName');
@@ -255,24 +262,35 @@ async function selectParticipant(eventId, participantId, participantName, teamNa
                         min="0"
                         max="${criteria.max_score}"
                         step="0.01"
-                        value=""
+                        value="${criteria.existing_score ?? ''}"
                         placeholder="Enter score">
                     <small class="max-note">Max: ${criteria.max_score}</small>
                 </div>
             </div>
         `).join('');
 
+        const hasExistingGrades = result.data.some(criteria => criteria.existing_score !== null && criteria.existing_score !== undefined);
+        if (hasExistingGrades) {
+            gradingForm.querySelectorAll('.grade-input').forEach(input => input.setAttribute('disabled', 'disabled'));
+        }
+
         const submitBtn = document.createElement('button');
         submitBtn.className = 'submit-btn';
-        submitBtn.textContent = 'Submit Grades';
-        submitBtn.onclick = () => submitGrades(participantId, result.data);
+        submitBtn.textContent = hasExistingGrades ? 'Grades Already Submitted' : 'Submit Grades';
+        submitBtn.disabled = hasExistingGrades;
+        submitBtn.onclick = () => submitGrades(result.data);
         gradingForm.appendChild(submitBtn);
     }
 
     switchSection('grading');
 }
 
-async function submitGrades(participantId, criteriaList) {
+async function submitGrades(criteriaList) {
+    if (!selectedEventId || !selectedParticipantId) {
+        alert('No participant selected.');
+        return;
+    }
+
     const inputs = document.querySelectorAll('.grade-input');
     let hasValidGrades = false;
 
@@ -288,7 +306,7 @@ async function submitGrades(participantId, criteriaList) {
                 return;
             }
 
-            const result = await panelistApi.submitGrade(participantId, criteria.id, score);
+            const result = await panelistApi.submitGrade(selectedEventId, selectedParticipantId, criteria.id, score);
 
             if (!result.success) {
                 alert('Error submitting grade: ' + (result.message || 'Unknown error'));
@@ -299,18 +317,12 @@ async function submitGrades(participantId, criteriaList) {
 
     if (hasValidGrades) {
         alert('Grades submitted successfully! Grades are now locked.');
-        // lock inputs after submission
-        inputs.forEach(input => input.setAttribute('disabled', 'disabled'));
-        const gradingForm = document.getElementById('gradingForm');
-        // remove existing submit button
-        const submitBtn = gradingForm.querySelector('.submit-btn');
-        if (submitBtn) submitBtn.remove();
-        // add lock notice
-        const notice = document.createElement('div');
-        notice.className = 'alert alert-info';
-        notice.style.marginTop = '1rem';
-        notice.textContent = 'You have already submitted grades for this participant; grades are now locked.';
-        gradingForm.appendChild(notice);
+        await selectParticipant(
+            selectedEventId,
+            selectedParticipantId,
+            document.getElementById('participantName').textContent,
+            (document.getElementById('participantTeamName').textContent || '').replace(/^Team:\s*/, '')
+        );
     } else {
         alert('Please enter at least one grade');
     }

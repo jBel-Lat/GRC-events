@@ -78,12 +78,13 @@ class PanelistApi {
         }
     }
 
-    async submitGrade(participantId, criteriaId, score) {
+    async submitGrade(eventId, participantId, criteriaId, score) {
         try {
             const response = await fetch(`${API_BASE_URL}/participants/grade/submit`, {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body: JSON.stringify({
+                    event_id: eventId,
                     participant_id: participantId,
                     criteria_id: criteriaId,
                     score: parseFloat(score)
