@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS participant (
     problem_name VARCHAR(100),
     registration_number VARCHAR(100),
     pdf_file_path VARCHAR(500),
-    ppt_file_path VARCHAR(500),
+    video_file_path VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE
@@ -149,6 +149,21 @@ CREATE TABLE IF NOT EXISTS grade (
     FOREIGN KEY (criteria_id) REFERENCES criteria(id) ON DELETE CASCADE,
     FOREIGN KEY (panelist_id) REFERENCES panelist(id) ON DELETE CASCADE,
     UNIQUE KEY unique_grade (participant_id, criteria_id, panelist_id)
+);
+
+-- Imported submission links from Google Sheet
+CREATE TABLE IF NOT EXISTS submissions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NULL,
+    team_leader_name VARCHAR(255) NOT NULL,
+    team_members_name TEXT NULL,
+    problem_name VARCHAR(255) NULL,
+    pdf_url TEXT NULL,
+    video_url TEXT NULL,
+    source_sheet_url TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_submission (team_leader_name, problem_name)
 );
 
 

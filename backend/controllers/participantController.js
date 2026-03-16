@@ -43,7 +43,7 @@ async function getCriteriaWithDetailsCompat(connection, eventId) {
 async function ensureParticipantFileColumns(connection) {
     const alterQueries = [
         'ALTER TABLE participant ADD COLUMN pdf_file_path VARCHAR(500) NULL',
-        'ALTER TABLE participant ADD COLUMN ppt_file_path VARCHAR(500) NULL'
+        'ALTER TABLE participant ADD COLUMN video_file_path VARCHAR(500) NULL'
     ];
 
     for (const sql of alterQueries) {
@@ -291,7 +291,7 @@ exports.getEventParticipants = async (req, res) => {
                        p.problem_name,
                        p.registration_number,
                        p.pdf_file_path,
-                       p.ppt_file_path,
+                       p.video_file_path,
                        (
                          SELECT COALESCE(SUM(
                             c.percentage * (
@@ -337,7 +337,7 @@ exports.getEventParticipants = async (req, res) => {
                 `,
                 [event_id]
             );
-            rows = withoutFiles.map(r => ({ ...r, problem_name: null, pdf_file_path: null, ppt_file_path: null }));
+            rows = withoutFiles.map(r => ({ ...r, problem_name: null, pdf_file_path: null, video_file_path: null }));
         }
         connection.release();
         res.json({ success: true, data: rows });
@@ -575,7 +575,7 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
                        t.team_label AS team_name,
                        t.team_label AS participant_name,
                        p.pdf_file_path,
-                       p.ppt_file_path,
+                       p.video_file_path,
                        CASE WHEN bcTech.id IS NULL THEN 0 ELSE 1 END AS is_best_technical_implementation,
                        CASE WHEN bcEthical.id IS NULL THEN 0 ELSE 1 END AS is_best_ethical_responsible_ai_design
                 FROM (
@@ -641,7 +641,7 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
                 `,
                 [event_id, panelistId, event_id, panelistId, event_id]
             );
-            participants = withoutFiles.map(p => ({ ...p, pdf_file_path: null, ppt_file_path: null }));
+            participants = withoutFiles.map(p => ({ ...p, pdf_file_path: null, video_file_path: null }));
         }
         connection.release();
         res.json({ success: true, data: participants });
@@ -954,9 +954,9 @@ const participantFileUpload = multer({
     fileFilter: (req, file, cb) => {
         const ext = path.extname(file.originalname || '').toLowerCase();
         const isPdf = ext === '.pdf';
-        const isPpt = ext === '.ppt' || ext === '.pptx';
-        if (!isPdf && !isPpt) {
-            cb(new Error('Only PDF, PPT, and PPTX files are allowed.'));
+        const isVideo = ['.mp4', '.mov', '.webm', '.mkv'].includes(ext);
+        if (!isPdf && !isVideo) {
+            cb(new Error('Only PDF and video files (mp4/mov/webm/mkv) are allowed.'));
             return;
         }
         cb(null, true);
@@ -970,7 +970,7 @@ const participantFileUpload = multer({
 exports.importUploadMiddleware = importUpload.single('file');
 exports.participantFilesUploadMiddleware = participantFileUpload.fields([
     { name: 'pdf_file', maxCount: 1 },
-    { name: 'ppt_file', maxCount: 1 }
+    { name: 'video_file', maxCount: 1 }
 ]);
 
 exports.uploadParticipantFiles = async (req, res) => {
@@ -978,10 +978,10 @@ exports.uploadParticipantFiles = async (req, res) => {
         const { participant_id } = req.params;
         const files = req.files || {};
         const pdfFile = files.pdf_file && files.pdf_file[0] ? files.pdf_file[0] : null;
-        const pptFile = files.ppt_file && files.ppt_file[0] ? files.ppt_file[0] : null;
+        const videoFile = files.video_file && files.video_file[0] ? files.video_file[0] : null;
 
-        if (!pdfFile && !pptFile) {
-            return res.status(400).json({ success: false, message: 'Please upload a PDF or PPT/PPTX file.' });
+        if (!pdfFile && !videoFile) {
+            return res.status(400).json({ success: false, message: 'Please upload a PDF or video file.' });
         }
 
         const connection = await pool.getConnection();
@@ -1004,15 +1004,15 @@ exports.uploadParticipantFiles = async (req, res) => {
             updates.push('pdf_file_path = ?');
             params.push(`/uploads/participants/${pdfFile.filename}`);
         }
-        if (pptFile) {
-            updates.push('ppt_file_path = ?');
-            params.push(`/uploads/participants/${pptFile.filename}`);
+        if (videoFile) {
+            updates.push('video_file_path = ?');
+            params.push(`/uploads/participants/${videoFile.filename}`);
         }
         params.push(participant_id);
 
         await connection.query(`UPDATE participant SET ${updates.join(', ')} WHERE id = ?`, params);
         const [updated] = await connection.query(
-            'SELECT id, pdf_file_path, ppt_file_path FROM participant WHERE id = ? LIMIT 1',
+            'SELECT id, pdf_file_path, video_file_path FROM participant WHERE id = ? LIMIT 1',
             [participant_id]
         );
         connection.release();

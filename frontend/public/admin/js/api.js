@@ -551,6 +551,37 @@ class AdminApi {
             return { success: false, message: 'Network error' };
         }
     }
+
+    async importSubmissionsFromGoogleSheet(sheetUrl, eventId = null) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/submissions/import-google-sheet`, {
+                method: 'POST',
+                headers: this.getHeaders(),
+                body: JSON.stringify({
+                    sheet_url: sheetUrl,
+                    event_id: eventId
+                })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Import submissions from Google Sheet error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
+    async getSubmissions(eventId = null) {
+        try {
+            const query = eventId ? `?event_id=${encodeURIComponent(eventId)}` : '';
+            const response = await fetch(`${API_BASE_URL}/submissions${query}`, {
+                headers: this.getHeaders(),
+                cache: 'no-store'
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Get submissions error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
 }
 
 const adminApi = new AdminApi();

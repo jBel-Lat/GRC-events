@@ -88,6 +88,7 @@ async function loadEvents() {
     } else {
         eventsList.innerHTML = '<div class="empty-state"><p>Error loading events</p></div>';
     }
+    loadSubmissionsTable(currentEventId || null);
 }
 
 async function selectEvent(eventId) {
@@ -111,6 +112,7 @@ async function selectEvent(eventId) {
         
         // Load participants
         loadEventParticipants(eventId);
+        loadSubmissionsTable(eventId);
         loadTopBestCategory(eventId);
         
         // Load criteria
@@ -145,7 +147,7 @@ async function loadEventParticipants(eventId) {
                         ids: [],
                         problem_name: p.problem_name || '',
                         pdf_file_path: p.pdf_file_path || null,
-                        ppt_file_path: p.ppt_file_path || null
+                        video_file_path: p.video_file_path || null
                     };
                 }
                 groups[key].members.push(p.participant_name);
@@ -156,7 +158,7 @@ async function loadEventParticipants(eventId) {
                 if (!groups[key].reg && p.registration_number) groups[key].reg = p.registration_number;
                 if (!groups[key].problem_name && p.problem_name) groups[key].problem_name = p.problem_name;
                 if (!groups[key].pdf_file_path && p.pdf_file_path) groups[key].pdf_file_path = p.pdf_file_path;
-                if (!groups[key].ppt_file_path && p.ppt_file_path) groups[key].ppt_file_path = p.ppt_file_path;
+                if (!groups[key].video_file_path && p.video_file_path) groups[key].video_file_path = p.video_file_path;
             });
 
             const grouped = Object.values(groups);
@@ -199,13 +201,13 @@ async function loadEventParticipants(eventId) {
                         <button class="btn btn-secondary" onclick="openAddMemberForTeam('${teamGroup.team.replace(/'/g, "\\'")}'); event.stopPropagation();">+ Add Member</button>
                         <button class="btn btn-secondary" onclick="document.getElementById('participantPdfFile-${teamGroup.ids[0]}').click(); event.stopPropagation();">Upload PDF</button>
                         <input type="file" id="participantPdfFile-${teamGroup.ids[0]}" accept=".pdf,application/pdf" style="display:none;" onchange="handleParticipantSingleFileSelected(${teamGroup.ids[0]}, this, 'pdf'); event.stopPropagation();">
-                        <button class="btn btn-secondary" onclick="document.getElementById('participantPptFile-${teamGroup.ids[0]}').click(); event.stopPropagation();">Upload PPT</button>
-                        <input type="file" id="participantPptFile-${teamGroup.ids[0]}" accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" style="display:none;" onchange="handleParticipantSingleFileSelected(${teamGroup.ids[0]}, this, 'ppt'); event.stopPropagation();">
+                        <button class="btn btn-secondary" onclick="document.getElementById('participantVideoFile-${teamGroup.ids[0]}').click(); event.stopPropagation();">Upload Video</button>
+                        <input type="file" id="participantVideoFile-${teamGroup.ids[0]}" accept=".mp4,.mov,.webm,.mkv,video/mp4,video/quicktime,video/webm,video/x-matroska" style="display:none;" onchange="handleParticipantSingleFileSelected(${teamGroup.ids[0]}, this, 'video'); event.stopPropagation();">
                         <button class="btn btn-danger" onclick="deleteTeamParticipants('${teamGroup.team.replace(/'/g, "\\'")}'); event.stopPropagation();">Delete Team</button>
                     </div>
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
                         ${teamGroup.pdf_file_path ? `<a href="${teamGroup.pdf_file_path}" target="_blank" rel="noopener" class="btn btn-secondary" style="padding:6px 10px;">View PDF</a>` : ''}
-                        ${teamGroup.ppt_file_path ? `<a href="${teamGroup.ppt_file_path}" target="_blank" rel="noopener" class="btn btn-secondary" style="padding:6px 10px;">View PPT</a>` : ''}
+                        ${teamGroup.video_file_path ? `<a href="${teamGroup.video_file_path}" target="_blank" rel="noopener" class="btn btn-secondary" style="padding:6px 10px;">View Video</a>` : ''}
                     </div>
                 </div>
             `).join('');
@@ -746,6 +748,15 @@ document.addEventListener('DOMContentLoaded', () => {
         createTopParticipantsEventBtn.addEventListener('click', createTopParticipantsEvent);
     }
 
+    const importSubmissionsBtn = document.getElementById('importSubmissionsBtn');
+    const refreshSubmissionsBtn = document.getElementById('refreshSubmissionsBtn');
+    if (importSubmissionsBtn) {
+        importSubmissionsBtn.addEventListener('click', importSubmissionsFromGoogleSheet);
+    }
+    if (refreshSubmissionsBtn) {
+        refreshSubmissionsBtn.addEventListener('click', () => loadSubmissionsTable(currentEventId || null));
+    }
+
     const addEventForm = document.getElementById('addEventForm');
     if (addEventForm) {
         addEventForm.addEventListener('submit', handleAddEvent);
@@ -1173,26 +1184,26 @@ async function handleParticipantSingleFileSelected(participantId, inputEl, fileT
     if (!file) return;
 
     const isPdf = fileType === 'pdf';
-    const isPpt = fileType === 'ppt';
+    const isVideo = fileType === 'video';
 
     if (isPdf && !/\.pdf$/i.test(file.name)) {
         alert('Please select a PDF file.');
         inputEl.value = '';
         return;
     }
-    if (isPpt && !/\.(ppt|pptx)$/i.test(file.name)) {
-        alert('Please select a PPT or PPTX file.');
+    if (isVideo && !/\.(mp4|mov|webm|mkv)$/i.test(file.name)) {
+        alert('Please select a supported video file (mp4, mov, webm, mkv).');
         inputEl.value = '';
         return;
     }
 
     const formData = new FormData();
     if (isPdf) formData.append('pdf_file', file);
-    if (isPpt) formData.append('ppt_file', file);
+    if (isVideo) formData.append('video_file', file);
 
     const result = await adminApi.uploadParticipantFiles(participantId, formData);
     if (result.success) {
-        alert(`${isPdf ? 'PDF' : 'PPT'} uploaded successfully.`);
+        alert(`${isPdf ? 'PDF' : 'Video'} uploaded successfully.`);
         if (currentEventId) {
             await loadEventParticipants(currentEventId);
         }
@@ -1646,6 +1657,57 @@ function setupEventSearchListeners() {
     if (eventsSearchBox) {
         eventsSearchBox.addEventListener('keyup', filterEvents);
     }
+}
+
+async function importSubmissionsFromGoogleSheet() {
+    const sheetInput = document.getElementById('googleSheetUrlInput');
+    const url = (sheetInput?.value || '').trim();
+    if (!url) {
+        alert('Please enter a public Google Sheet URL.');
+        return;
+    }
+
+    const result = await adminApi.importSubmissionsFromGoogleSheet(url, currentEventId || null);
+    if (!result.success) {
+        alert(result.message || 'Failed to import submissions.');
+        return;
+    }
+
+    const imported = result.data?.imported ?? 0;
+    const skipped = result.data?.skipped ?? 0;
+    alert(`Import complete. Imported: ${imported}, Skipped: ${skipped}.`);
+    await loadSubmissionsTable(currentEventId || null);
+}
+
+async function loadSubmissionsTable(eventId = null) {
+    const body = document.getElementById('submissionsTableBody');
+    if (!body) return;
+
+    body.innerHTML = '<tr><td colspan="4" class="text-muted" style="padding:10px;">Loading submissions...</td></tr>';
+    const result = await adminApi.getSubmissions(eventId);
+    if (!result.success) {
+        body.innerHTML = `<tr><td colspan="4" class="text-muted" style="padding:10px;">${result.message || 'Unable to load submissions.'}</td></tr>`;
+        return;
+    }
+
+    const rows = Array.isArray(result.data) ? result.data : [];
+    if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="4" class="text-muted" style="padding:10px;">No imported submissions yet.</td></tr>';
+        return;
+    }
+
+    body.innerHTML = rows.map((row) => `
+        <tr>
+            <td style="padding:8px; border-bottom:1px solid #f1ede6;">${row.team_leader_name || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #f1ede6;">${row.problem_name || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #f1ede6;">
+                ${row.pdf_url ? `<a class="btn btn-secondary" href="${row.pdf_url}" target="_blank" rel="noopener">View PDF</a>` : '<span class="text-muted">N/A</span>'}
+            </td>
+            <td style="padding:8px; border-bottom:1px solid #f1ede6;">
+                ${row.video_url ? `<a class="btn btn-secondary" href="${row.video_url}" target="_blank" rel="noopener">Watch Video</a>` : '<span class="text-muted">N/A</span>'}
+            </td>
+        </tr>
+    `).join('');
 }
 
 // Event-level weight controls

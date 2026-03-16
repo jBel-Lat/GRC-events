@@ -56,6 +56,26 @@
                         <button id="addEventBtn" class="btn btn-primary">+ Add Event</button>
                     </div>
                 </div>
+                <div class="section" style="margin-bottom: 12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <input type="text" id="googleSheetUrlInput" class="search-box" placeholder="Google Sheet URL (public)" style="min-width: 320px;">
+                    <button id="importSubmissionsBtn" class="btn btn-secondary">Import Submissions from Google Sheet</button>
+                    <button id="refreshSubmissionsBtn" class="btn btn-secondary">Refresh Submissions</button>
+                </div>
+                <div class="section" style="margin-bottom: 16px; overflow-x:auto;">
+                    <table style="width:100%; border-collapse: collapse; min-width: 720px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Team Leader Name</th>
+                                <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Problem Name</th>
+                                <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Project Documentation</th>
+                                <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Demo Video</th>
+                            </tr>
+                        </thead>
+                        <tbody id="submissionsTableBody">
+                            <tr><td colspan="4" class="text-muted" style="padding:10px;">No imported submissions yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
                 <div id="eventsList" class="events-list"></div>
             </section>
 

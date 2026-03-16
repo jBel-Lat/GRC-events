@@ -251,7 +251,7 @@ async function selectEvent(eventId, eventName) {
                     </div>
                     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
                         ${participant.pdf_file_path ? `<a class="btn btn-secondary" href="${participant.pdf_file_path}" target="_blank" rel="noopener" onclick="event.stopPropagation();">View PDF</a>` : ''}
-                        ${participant.ppt_file_path ? `<a class="btn btn-secondary" href="${participant.ppt_file_path}" target="_blank" rel="noopener" onclick="event.stopPropagation();">View PPT</a>` : ''}
+                        ${participant.video_file_path ? `<a class="btn btn-secondary" href="${participant.video_file_path}" target="_blank" rel="noopener" onclick="event.stopPropagation();">View Video</a>` : ''}
                     </div>
                 </div>
             `).join('');

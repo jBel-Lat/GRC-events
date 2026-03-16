@@ -9,6 +9,7 @@ const eventRoutes = require('./routes/eventRoutes');
 const participantRoutes = require('./routes/participantRoutes');
 const panelistRoutes = require('./routes/panelistRoutes');
 const studentRoutes = require('./routes/studentRoutes');
+const submissionRoutes = require('./routes/submissionRoutes');
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/participants', participantRoutes);
 app.use('/api/panelists', panelistRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/submissions', submissionRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
