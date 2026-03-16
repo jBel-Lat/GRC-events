@@ -99,6 +99,29 @@ function parseCsv(text) {
     });
 }
 
+function normalizeHeader(text) {
+    return String(text || '')
+        .toLowerCase()
+        .replace(/[\u2018\u2019\u201c\u201d'"]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+}
+
+function getCellByHeaderTokens(row, headerTokenSets = []) {
+    const entries = Object.entries(row || {});
+    for (const [header, value] of entries) {
+        const v = String(value || '').trim();
+        if (!v) continue;
+        const normalized = normalizeHeader(header);
+        for (const tokens of headerTokenSets) {
+            const ok = tokens.every((t) => normalized.includes(t));
+            if (ok) return v;
+        }
+    }
+    return '';
+}
+
 function normalizeDriveLink(link, type) {
     const raw = String(link || '').trim();
     if (!raw) return null;
@@ -226,20 +249,44 @@ exports.importFromGoogleSheet = async (req, res) => {
         let imported = 0;
         let skipped = 0;
         for (const row of rows) {
-            const teamName = getCell(row, ['Team Name', 'team name']);
-            const teamLeader = getCell(row, ['Team Leader Name', 'Team Leader', 'team leader name']);
-            const teamMembers = getCell(row, ['Team Members Name', 'Team Member Name', 'team members name']);
-            const problemName = getCell(row, ['Problem Name', 'problem name']);
-            const rawPdf = getCell(row, ['Upload Project Documentation (PDF)', 'Upload Project Documentation', 'Project Documentation (PDF)']);
-            const rawVideo = getCell(row, ['Upload Project Demo Video', 'Project Demo Video']);
+            const teamName = getCellByHeaderTokens(row, [
+                ['team', 'name'],
+                ['group', 'name']
+            ]);
+            const teamLeader = getCellByHeaderTokens(row, [
+                ['team', 'leader', 'name'],
+                ['team', 'leader']
+            ]);
+            const teamMembers = getCellByHeaderTokens(row, [
+                ['team', 'members', 'name'],
+                ['team', 'member', 'name'],
+                ['members', 'name']
+            ]);
+            const problemName = getCellByHeaderTokens(row, [
+                ['problem', 'name'],
+                ['challenge', 'name']
+            ]);
+            const rawPdf = getCellByHeaderTokens(row, [
+                ['upload', 'project', 'documentation', 'pdf'],
+                ['project', 'documentation', 'pdf'],
+                ['documentation', 'pdf'],
+                ['documentation', 'file']
+            ]);
+            const rawVideo = getCellByHeaderTokens(row, [
+                ['upload', 'project', 'demo', 'video'],
+                ['project', 'demo', 'video'],
+                ['demo', 'video'],
+                ['video', 'file']
+            ]);
 
             const pdfUrl = normalizeDriveLink(rawPdf, 'pdf');
             const videoUrl = normalizeDriveLink(rawVideo, 'video');
 
-            if (!teamName || !teamLeader || (!pdfUrl && !videoUrl)) {
+            if (!teamName || (!pdfUrl && !videoUrl)) {
                 skipped += 1;
                 continue;
             }
+            const safeTeamLeader = teamLeader || 'N/A';
 
             await connection.query(
                 `
@@ -253,7 +300,7 @@ exports.importFromGoogleSheet = async (req, res) => {
                     video_link = VALUES(video_link),
                     updated_at = CURRENT_TIMESTAMP
                 `,
-                [teamName, teamLeader, teamMembers || null, problemName || null, pdfUrl, videoUrl]
+                [teamName, safeTeamLeader, teamMembers || null, problemName || null, pdfUrl, videoUrl]
             );
             imported += 1;
         }
