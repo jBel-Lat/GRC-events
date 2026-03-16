@@ -267,13 +267,14 @@ async function selectParticipant(eventId, participantId, participantName, teamNa
 
         gradingForm.innerHTML = result.data.map(criteria => {
             const detailsHtml = formatCriteriaDetails(criteria);
+            const hasDetails = Boolean(detailsHtml);
             return `
             <div class="grading-item" data-criteria-id="${criteria.id}">
                 <div class="grading-item-header">
                     <div class="grading-item-title" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <span>${escapeHtml(criteria.criteria_name)}</span>
                     </div>
-                    ${detailsHtml ? `<div class="criteria-details-text">Details: ${detailsHtml}</div>` : ''}
+                    <div class="criteria-details-text${hasDetails ? '' : ' is-empty'}">Details: ${hasDetails ? detailsHtml : 'No details provided.'}</div>
                     <div class="grading-percentage">${criteria.percentage}% Weight | Max Score: ${criteria.max_score}</div>
                 </div>
                 <div class="grading-input-group">

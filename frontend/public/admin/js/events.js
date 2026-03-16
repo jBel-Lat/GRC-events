@@ -1137,10 +1137,12 @@ async function createTopParticipantsEvent() {
     const createBtn = document.getElementById('createTopParticipantsEventBtn');
     const topCountInput = document.getElementById('topParticipantsCount');
     const eventNameInput = document.getElementById('topParticipantsEventName');
-    const topCount = parseInt(topCountInput?.value || '10', 10);
+    const topCountRaw = String(topCountInput?.value || '').trim().toLowerCase();
+    const topCountMatch = topCountRaw.match(/\d+/);
+    const topCount = topCountMatch ? parseInt(topCountMatch[0], 10) : NaN;
 
     if (!Number.isFinite(topCount) || topCount <= 0) {
-        alert('Please select a valid top count.');
+        alert('Please enter a valid participant count (example: top3).');
         return;
     }
 

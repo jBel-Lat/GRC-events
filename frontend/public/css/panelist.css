@@ -249,6 +249,11 @@
     line-height: 1.35;
 }
 
+.criteria-details-text.is-empty {
+    color: #9b9b9b;
+    font-style: italic;
+}
+
 .grading-input-group {
     display: flex;
     gap: 0.5rem;
