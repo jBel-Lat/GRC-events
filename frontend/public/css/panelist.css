@@ -242,6 +242,13 @@
     color: #999;
 }
 
+.criteria-details-text {
+    font-size: 0.9rem;
+    color: #555;
+    margin: 0.15rem 0 0.3rem;
+    line-height: 1.35;
+}
+
 .grading-input-group {
     display: flex;
     gap: 0.5rem;
