@@ -221,6 +221,23 @@ async function ensureSubmissionsTable(connection) {
     }
 }
 
+async function getSubmissionsSchema(connection) {
+    const [rows] = await connection.query('SHOW COLUMNS FROM submissions');
+    const columns = new Set(rows.map((r) => r.Field));
+    const requiredNoDefault = rows.filter((r) => {
+        const isAutoIncrement = String(r.Extra || '').toLowerCase().includes('auto_increment');
+        return r.Null === 'NO' && r.Default === null && !isAutoIncrement;
+    });
+    return { columns, requiredNoDefault };
+}
+
+function fallbackValueForRequiredColumn(columnMeta) {
+    const type = String(columnMeta?.Type || '').toLowerCase();
+    if (/int|decimal|float|double|numeric|bit/.test(type)) return 0;
+    if (/date|time|year/.test(type)) return new Date();
+    return '';
+}
+
 async function tryFetchCsv(url) {
     try {
         const controller = new AbortController();
@@ -292,6 +309,7 @@ exports.importFromGoogleSheet = async (req, res) => {
 
         connection = await pool.getConnection();
         await ensureSubmissionsTable(connection);
+        const schema = await getSubmissionsSchema(connection);
 
         let imported = 0;
         let skipped = 0;
@@ -347,31 +365,87 @@ exports.importFromGoogleSheet = async (req, res) => {
             const safeTeamLeader = teamLeader || 'N/A';
 
             const normalizedProblem = problemName || null;
-            const [updateResult] = await connection.query(
-                `
-                UPDATE submissions
-                SET
-                    team_leader = ?,
-                    team_leader_name = ?,
-                    team_members = ?,
-                    problem_name = ?,
-                    pdf_link = ?,
-                    video_link = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE team_name = ?
-                  AND ((problem_name IS NULL AND ? IS NULL) OR problem_name = ?)
-                `,
-                [safeTeamLeader, safeTeamLeader, teamMembers || null, normalizedProblem, pdfUrl, videoUrl, teamName, normalizedProblem, normalizedProblem]
-            );
+            const updateAssignments = [];
+            const updateParams = [];
+            const addUpdate = (column, value) => {
+                if (!schema.columns.has(column)) return;
+                updateAssignments.push(`${column} = ?`);
+                updateParams.push(value);
+            };
+
+            addUpdate('team_leader', safeTeamLeader);
+            addUpdate('team_leader_name', safeTeamLeader);
+            addUpdate('team_members', teamMembers || null);
+            addUpdate('problem_name', normalizedProblem);
+            addUpdate('pdf_link', pdfUrl);
+            addUpdate('video_link', videoUrl);
+            if (schema.columns.has('updated_at')) {
+                updateAssignments.push('updated_at = CURRENT_TIMESTAMP');
+            }
+
+            let updateResult = { affectedRows: 0 };
+            if (updateAssignments.length > 0 && schema.columns.has('team_name')) {
+                const whereParts = ['team_name = ?'];
+                const whereParams = [teamName];
+
+                if (schema.columns.has('problem_name')) {
+                    whereParts.push('((problem_name IS NULL AND ? IS NULL) OR problem_name = ?)');
+                    whereParams.push(normalizedProblem, normalizedProblem);
+                }
+
+                const [rawUpdateResult] = await connection.query(
+                    `
+                    UPDATE submissions
+                    SET ${updateAssignments.join(', ')}
+                    WHERE ${whereParts.join(' AND ')}
+                    `,
+                    [...updateParams, ...whereParams]
+                );
+                updateResult = rawUpdateResult || { affectedRows: 0 };
+            }
 
             if (!updateResult || !updateResult.affectedRows) {
+                const insertColumns = [];
+                const insertValues = [];
+                const addInsert = (column, value) => {
+                    if (!schema.columns.has(column)) return;
+                    if (insertColumns.includes(column)) return;
+                    insertColumns.push(column);
+                    insertValues.push(value);
+                };
+
+                addInsert('team_name', teamName);
+                addInsert('team_leader', safeTeamLeader);
+                addInsert('team_leader_name', safeTeamLeader);
+                addInsert('team_members', teamMembers || null);
+                addInsert('problem_name', normalizedProblem);
+                addInsert('pdf_link', pdfUrl);
+                addInsert('video_link', videoUrl);
+
+                for (const requiredColumn of schema.requiredNoDefault) {
+                    const field = requiredColumn.Field;
+                    if (insertColumns.includes(field)) continue;
+                    addInsert(field, fallbackValueForRequiredColumn(requiredColumn));
+                }
+
+                if (!insertColumns.length) {
+                    skipped += 1;
+                    if (skipDetails.length < 10) {
+                        skipDetails.push({
+                            row: i + 2,
+                            reason: 'no compatible columns found for insert'
+                        });
+                    }
+                    continue;
+                }
+
                 await connection.query(
                     `
                     INSERT INTO submissions
-                        (team_name, team_leader, team_leader_name, team_members, problem_name, pdf_link, video_link)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (${insertColumns.join(', ')})
+                    VALUES (${insertColumns.map(() => '?').join(', ')})
                     `,
-                    [teamName, safeTeamLeader, safeTeamLeader, teamMembers || null, normalizedProblem, pdfUrl, videoUrl]
+                    insertValues
                 );
             }
             imported += 1;
@@ -394,13 +468,20 @@ exports.getSubmissions = async (req, res) => {
     try {
         connection = await pool.getConnection();
         await ensureSubmissionsTable(connection);
+        const schema = await getSubmissionsSchema(connection);
 
-        const [rows] = await connection.query(`
-            SELECT * FROM submissions
-            ORDER BY
-                COALESCE(updated_at, created_at) DESC,
-                id DESC
-        `);
+        const orderParts = [];
+        if (schema.columns.has('updated_at') && schema.columns.has('created_at')) {
+            orderParts.push('COALESCE(updated_at, created_at) DESC');
+        } else if (schema.columns.has('updated_at')) {
+            orderParts.push('updated_at DESC');
+        } else if (schema.columns.has('created_at')) {
+            orderParts.push('created_at DESC');
+        }
+        if (schema.columns.has('id')) orderParts.push('id DESC');
+
+        const orderBy = orderParts.length ? ` ORDER BY ${orderParts.join(', ')}` : '';
+        const [rows] = await connection.query(`SELECT * FROM submissions${orderBy}`);
         return res.json({ success: true, data: rows });
     } catch (error) {
         console.error('getSubmissions error:', error);
