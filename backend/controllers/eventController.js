@@ -1,6 +1,63 @@
 const pool = require('../config/database');
 const { SUCCESS_MESSAGES, ERROR_MESSAGES } = require('../config/constants');
 
+async function getCriteriaWithDetailsCompat(connection, eventId) {
+    const queries = [
+        'SELECT id, criteria_name, criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
+        'SELECT id, criteria_name, details AS criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
+        'SELECT id, criteria_name, description AS criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
+        'SELECT id, criteria_name, percentage, max_score FROM criteria WHERE event_id = ?'
+    ];
+
+    for (const sql of queries) {
+        try {
+            const [rows] = await connection.query(sql, [eventId]);
+            return rows.map((row) => ({
+                ...row,
+                criteria_details: row.criteria_details || null
+            }));
+        } catch (err) {
+            if (!(err.message && err.message.includes('Unknown column'))) {
+                throw err;
+            }
+        }
+    }
+
+    return [];
+}
+
+async function insertCriteriaCompat(connection, eventId, criteriaName, details, percentage) {
+    const inserts = [
+        {
+            sql: 'INSERT INTO criteria (event_id, criteria_name, criteria_details, percentage, max_score) VALUES (?, ?, ?, ?, ?)',
+            params: [eventId, criteriaName, details || null, percentage, percentage]
+        },
+        {
+            sql: 'INSERT INTO criteria (event_id, criteria_name, details, percentage, max_score) VALUES (?, ?, ?, ?, ?)',
+            params: [eventId, criteriaName, details || null, percentage, percentage]
+        },
+        {
+            sql: 'INSERT INTO criteria (event_id, criteria_name, description, percentage, max_score) VALUES (?, ?, ?, ?, ?)',
+            params: [eventId, criteriaName, details || null, percentage, percentage]
+        },
+        {
+            sql: 'INSERT INTO criteria (event_id, criteria_name, percentage, max_score) VALUES (?, ?, ?, ?)',
+            params: [eventId, criteriaName, percentage, percentage]
+        }
+    ];
+
+    for (const query of inserts) {
+        try {
+            await connection.query(query.sql, query.params);
+            return;
+        } catch (err) {
+            if (!(err.message && err.message.includes('Unknown column'))) {
+                throw err;
+            }
+        }
+    }
+}
+
 // Get all events
 exports.getAllEvents = async (req, res) => {
     try {
@@ -53,24 +110,7 @@ exports.getEventDetails = async (req, res) => {
         }
 
         // Get criteria for event
-        let criteria = [];
-        try {
-            const [rows] = await connection.query(
-                'SELECT id, criteria_name, criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
-                [id]
-            );
-            criteria = rows;
-        } catch (err) {
-            if (err.message && err.message.includes('Unknown column')) {
-                const [rows] = await connection.query(
-                    'SELECT id, criteria_name, percentage, max_score FROM criteria WHERE event_id = ?',
-                    [id]
-                );
-                criteria = rows.map(c => ({ ...c, criteria_details: null }));
-            } else {
-                throw err;
-            }
-        }
+        const criteria = await getCriteriaWithDetailsCompat(connection, id);
 
         connection.release();
 
@@ -138,22 +178,8 @@ exports.createEvent = async (req, res) => {
         // Insert criteria if provided
         if (criteria && criteria.length > 0) {
             for (const crit of criteria) {
-                const details = (crit.criteria_details || crit.details || '').trim();
-                try {
-                    await connection.query(
-                        'INSERT INTO criteria (event_id, criteria_name, criteria_details, percentage, max_score) VALUES (?, ?, ?, ?, ?)',
-                        [eventId, crit.criteria_name, details || null, crit.percentage, crit.percentage] // max_score defaults to percentage
-                    );
-                } catch (err) {
-                    if (err.message && err.message.includes('Unknown column')) {
-                        await connection.query(
-                            'INSERT INTO criteria (event_id, criteria_name, percentage, max_score) VALUES (?, ?, ?, ?)',
-                            [eventId, crit.criteria_name, crit.percentage, crit.percentage]
-                        );
-                    } else {
-                        throw err;
-                    }
-                }
+                const details = (crit.criteria_details || crit.details || crit.description || '').trim();
+                await insertCriteriaCompat(connection, eventId, crit.criteria_name, details, crit.percentage);
             }
         }
 
@@ -252,21 +278,13 @@ exports.addCriteria = async (req, res) => {
 
         const connection = await pool.getConnection();
         
-        try {
-            await connection.query(
-                'INSERT INTO criteria (event_id, criteria_name, criteria_details, percentage, max_score) VALUES (?, ?, ?, ?, ?)',
-                [event_id, criteria_name, (criteria_details || '').trim() || null, percentage, percentage] // max_score defaults to percentage
-            );
-        } catch (err) {
-            if (err.message && err.message.includes('Unknown column')) {
-                await connection.query(
-                    'INSERT INTO criteria (event_id, criteria_name, percentage, max_score) VALUES (?, ?, ?, ?)',
-                    [event_id, criteria_name, percentage, percentage]
-                );
-            } else {
-                throw err;
-            }
-        }
+        await insertCriteriaCompat(
+            connection,
+            event_id,
+            criteria_name,
+            (criteria_details || '').trim(),
+            percentage
+        );
 
         connection.release();
 

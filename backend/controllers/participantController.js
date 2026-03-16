@@ -13,6 +13,31 @@ async function getAdminActorId(connection, req) {
     return adminActorId;
 }
 
+async function getCriteriaWithDetailsCompat(connection, eventId) {
+    const queries = [
+        'SELECT id, criteria_name, criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
+        'SELECT id, criteria_name, details AS criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
+        'SELECT id, criteria_name, description AS criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
+        'SELECT id, criteria_name, percentage, max_score FROM criteria WHERE event_id = ?'
+    ];
+
+    for (const sql of queries) {
+        try {
+            const [rows] = await connection.query(sql, [eventId]);
+            return rows.map((row) => ({
+                ...row,
+                criteria_details: row.criteria_details || null
+            }));
+        } catch (err) {
+            if (!(err.message && err.message.includes('Unknown column'))) {
+                throw err;
+            }
+        }
+    }
+
+    return [];
+}
+
 // Delete all participants for an event (admin)
 exports.deleteAllParticipantsForEvent = async (req, res) => {
     try {
@@ -233,24 +258,7 @@ exports.getParticipantGradesBreakdown = async (req, res) => {
         const { event_id, participant_id } = req.params;
         const connection = await pool.getConnection();
         const [eventWeights] = await connection.query('SELECT student_weight, panelist_weight FROM event WHERE id = ?', [event_id]);
-        let criteria = [];
-        try {
-            const [rows] = await connection.query(
-                'SELECT id, criteria_name, criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
-                [event_id]
-            );
-            criteria = rows;
-        } catch (err) {
-            if (err.message && err.message.includes('Unknown column')) {
-                const [rows] = await connection.query(
-                    'SELECT id, criteria_name, percentage, max_score FROM criteria WHERE event_id = ?',
-                    [event_id]
-                );
-                criteria = rows.map(c => ({ ...c, criteria_details: null }));
-            } else {
-                throw err;
-            }
-        }
+        let criteria = await getCriteriaWithDetailsCompat(connection, event_id);
         // Use percentage as max_score when none is provided
         criteria = criteria.map(c => ({
             ...c,
@@ -467,24 +475,7 @@ exports.getPanelistParticipantGrades = async (req, res) => {
             connection.release();
             return res.status(404).json({ success: false, message: ERROR_MESSAGES.PARTICIPANT_NOT_FOUND });
         }
-        let criteria = [];
-        try {
-            const [rows] = await connection.query(
-                'SELECT id, criteria_name, criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
-                [event_id]
-            );
-            criteria = rows;
-        } catch (err) {
-            if (err.message && err.message.includes('Unknown column')) {
-                const [rows] = await connection.query(
-                    'SELECT id, criteria_name, percentage, max_score FROM criteria WHERE event_id = ?',
-                    [event_id]
-                );
-                criteria = rows.map(c => ({ ...c, criteria_details: null }));
-            } else {
-                throw err;
-            }
-        }
+        let criteria = await getCriteriaWithDetailsCompat(connection, event_id);
         criteria = criteria.map(c => ({
             ...c,
             max_score: c.max_score && c.max_score > 0 ? c.max_score : c.percentage
@@ -602,24 +593,7 @@ exports.getStudentParticipantGrades = async (req, res) => {
         const { event_id, participant_id } = req.params;
         const studentId = req.user.id;
         const connection = await pool.getConnection();
-        let criteria = [];
-        try {
-            const [rows] = await connection.query(
-                'SELECT id, criteria_name, criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
-                [event_id]
-            );
-            criteria = rows;
-        } catch (err) {
-            if (err.message && err.message.includes('Unknown column')) {
-                const [rows] = await connection.query(
-                    'SELECT id, criteria_name, percentage, max_score FROM criteria WHERE event_id = ?',
-                    [event_id]
-                );
-                criteria = rows.map(c => ({ ...c, criteria_details: null }));
-            } else {
-                throw err;
-            }
-        }
+        let criteria = await getCriteriaWithDetailsCompat(connection, event_id);
         criteria = criteria.map(c => ({
             ...c,
             max_score: c.max_score && c.max_score > 0 ? c.max_score : c.percentage
