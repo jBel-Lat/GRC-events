@@ -179,8 +179,11 @@ async function ensureSubmissionsTable(connection) {
         'ALTER TABLE submissions ADD COLUMN team_name VARCHAR(255) NULL',
         'ALTER TABLE submissions ADD COLUMN team_leader VARCHAR(255) NULL',
         'ALTER TABLE submissions ADD COLUMN team_members TEXT NULL',
+        'ALTER TABLE submissions ADD COLUMN problem_name VARCHAR(255) NULL',
         'ALTER TABLE submissions ADD COLUMN pdf_link TEXT NULL',
-        'ALTER TABLE submissions ADD COLUMN video_link TEXT NULL'
+        'ALTER TABLE submissions ADD COLUMN video_link TEXT NULL',
+        'ALTER TABLE submissions ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+        'ALTER TABLE submissions ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
     ];
     for (const sql of alterStatements) {
         try {
@@ -189,6 +192,14 @@ async function ensureSubmissionsTable(connection) {
             if (!(err && (err.code === 'ER_DUP_FIELDNAME' || (err.message && err.message.toLowerCase().includes('duplicate column'))))) {
                 throw err;
             }
+        }
+    }
+
+    try {
+        await connection.query('ALTER TABLE submissions ADD UNIQUE KEY unique_submission (team_name, problem_name)');
+    } catch (err) {
+        if (!(err && (err.code === 'ER_DUP_KEYNAME' || (err.message && err.message.toLowerCase().includes('duplicate key name'))))) {
+            throw err;
         }
     }
 }
@@ -341,7 +352,7 @@ exports.importFromGoogleSheet = async (req, res) => {
         });
     } catch (error) {
         console.error('importFromGoogleSheet error:', error);
-        return res.status(500).json({ success: false, message: 'Server error' });
+        return res.status(500).json({ success: false, message: `Server error: ${error.message}` });
     } finally {
         if (connection) connection.release();
     }
@@ -357,7 +368,7 @@ exports.getSubmissions = async (req, res) => {
         return res.json({ success: true, data: rows });
     } catch (error) {
         console.error('getSubmissions error:', error);
-        return res.status(500).json({ success: false, message: 'Server error' });
+        return res.status(500).json({ success: false, message: `Server error: ${error.message}` });
     } finally {
         if (connection) connection.release();
     }
