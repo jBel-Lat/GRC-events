@@ -113,12 +113,26 @@ CREATE TABLE IF NOT EXISTS participant (
     event_id INT NOT NULL,
     participant_name VARCHAR(255) NOT NULL,
     team_name VARCHAR(255),
+    problem_name VARCHAR(100),
     registration_number VARCHAR(100),
     pdf_file_path VARCHAR(500),
     ppt_file_path VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE
+);
+
+-- Panelist Best-in-Category selections (used for Top 3 aggregation)
+CREATE TABLE IF NOT EXISTS panelist_best_category (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    panelist_id INT NOT NULL,
+    event_id INT NOT NULL,
+    participant_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (panelist_id) REFERENCES panelist(id) ON DELETE CASCADE,
+    FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE,
+    FOREIGN KEY (participant_id) REFERENCES participant(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_panelist_best_pick (panelist_id, event_id, participant_id)
 );
 
 -- Grade table

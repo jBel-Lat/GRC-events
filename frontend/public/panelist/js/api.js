@@ -96,6 +96,24 @@ class PanelistApi {
             return { success: false, message: 'Network error' };
         }
     }
+
+    async setBestCategory(eventId, participantId, isBest) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/participants/panelist/best-category`, {
+                method: 'POST',
+                headers: this.getHeaders(),
+                body: JSON.stringify({
+                    event_id: Number(eventId),
+                    participant_id: Number(participantId),
+                    is_best: Boolean(isBest)
+                })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Set best category error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
 }
 
 const panelistApi = new PanelistApi();

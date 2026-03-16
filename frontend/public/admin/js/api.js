@@ -204,6 +204,19 @@ class AdminApi {
         }
     }
 
+    async getTopBestCategory(eventId) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/participants/admin/event/${eventId}/top-best-category`, {
+                headers: this.getHeaders(),
+                cache: 'no-store'
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Get top best category error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
     async updateEventScoringWeights(eventId, studentWeight, panelistWeight) {
         try {
             const response = await fetch(`${API_BASE_URL}/participants/admin/event/${eventId}/weights`, {

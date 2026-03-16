@@ -59,6 +59,33 @@ async function ensureParticipantFileColumns(connection) {
     }
 }
 
+async function ensureParticipantProblemColumn(connection) {
+    try {
+        await connection.query('ALTER TABLE participant ADD COLUMN problem_name VARCHAR(100) NULL');
+    } catch (err) {
+        if (err && (err.code === 'ER_DUP_FIELDNAME' || (err.message && err.message.toLowerCase().includes('duplicate column')))) {
+            return;
+        }
+        throw err;
+    }
+}
+
+async function ensureBestCategoryTable(connection) {
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS panelist_best_category (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            panelist_id INT NOT NULL,
+            event_id INT NOT NULL,
+            participant_id INT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (panelist_id) REFERENCES panelist(id) ON DELETE CASCADE,
+            FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE,
+            FOREIGN KEY (participant_id) REFERENCES participant(id) ON DELETE CASCADE,
+            UNIQUE KEY unique_panelist_best_pick (panelist_id, event_id, participant_id)
+        )
+    `);
+}
+
 // Delete all participants for an event (admin)
 exports.deleteAllParticipantsForEvent = async (req, res) => {
     try {
@@ -231,6 +258,7 @@ exports.getEventParticipants = async (req, res) => {
                 SELECT p.id,
                        p.participant_name,
                        p.team_name,
+                       p.problem_name,
                        p.registration_number,
                        p.pdf_file_path,
                        p.ppt_file_path,
@@ -279,7 +307,7 @@ exports.getEventParticipants = async (req, res) => {
                 `,
                 [event_id]
             );
-            rows = withoutFiles.map(r => ({ ...r, pdf_file_path: null, ppt_file_path: null }));
+            rows = withoutFiles.map(r => ({ ...r, problem_name: null, pdf_file_path: null, ppt_file_path: null }));
         }
         connection.release();
         res.json({ success: true, data: rows });
@@ -353,7 +381,7 @@ exports.getParticipantGradesBreakdown = async (req, res) => {
 
 exports.addParticipant = async (req, res) => {
     try {
-        const { event_id, participant_name, team_name, registration_number, members } = req.body;
+        const { event_id, participant_name, team_name, problem_name, registration_number, members } = req.body;
 
         // Accept either a single participant_name or an array of members
         const names = [];
@@ -371,6 +399,7 @@ exports.addParticipant = async (req, res) => {
 
         const connection = await pool.getConnection();
         try {
+            await ensureParticipantProblemColumn(connection);
             // Fetch existing participants in this event to avoid duplicates and enforce max members per team
             const [existing] = await connection.query(
                 `SELECT participant_name, team_name FROM participant WHERE event_id = ?`,
@@ -418,11 +447,24 @@ exports.addParticipant = async (req, res) => {
             for (let i = 0; i < toInsert.length; i++) {
                 const name = toInsert[i];
                 const regNum = registration_number || `${canonicalTeamName || 'TEAM'}-${existingCount + i + 1}`;
-                const [result] = await connection.query(
-                    `INSERT INTO participant (event_id, participant_name, team_name, registration_number)
-                     VALUES (?, ?, ?, ?)`,
-                    [event_id, name, canonicalTeamName || null, regNum]
-                );
+                let result;
+                try {
+                    [result] = await connection.query(
+                        `INSERT INTO participant (event_id, participant_name, team_name, problem_name, registration_number)
+                         VALUES (?, ?, ?, ?, ?)`,
+                        [event_id, name, canonicalTeamName || null, (problem_name || '').trim() || null, regNum]
+                    );
+                } catch (insertErr) {
+                    if (insertErr.message && insertErr.message.includes('Unknown column')) {
+                        [result] = await connection.query(
+                            `INSERT INTO participant (event_id, participant_name, team_name, registration_number)
+                             VALUES (?, ?, ?, ?)`,
+                            [event_id, name, canonicalTeamName || null, regNum]
+                        );
+                    } else {
+                        throw insertErr;
+                    }
+                }
                 ids.push(result.insertId);
             }
             await connection.commit();
@@ -491,7 +533,9 @@ exports.updateEventScoringWeights = async (req, res) => {
 exports.getEventParticipantsForPanelist = async (req, res) => {
     try {
         const { event_id } = req.params;
+        const panelistId = Number(req.user.id);
         const connection = await pool.getConnection();
+        await ensureBestCategoryTable(connection);
         // return one representative row per team (no per-member grading)
         let participants = [];
         try {
@@ -501,7 +545,8 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
                        t.team_label AS team_name,
                        t.team_label AS participant_name,
                        p.pdf_file_path,
-                       p.ppt_file_path
+                       p.ppt_file_path,
+                       CASE WHEN bc.id IS NULL THEN 0 ELSE 1 END AS is_best_category
                 FROM (
                     SELECT MIN(id) AS min_id,
                            team_label
@@ -514,9 +559,13 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
                     GROUP BY team_label
                 ) t
                 LEFT JOIN participant p ON p.id = t.min_id
+                LEFT JOIN panelist_best_category bc
+                    ON bc.participant_id = t.min_id
+                   AND bc.panelist_id = ?
+                   AND bc.event_id = ?
                 ORDER BY t.team_label
                 `,
-                [event_id]
+                [event_id, panelistId, event_id]
             );
             participants = withFiles;
         } catch (err) {
@@ -525,19 +574,28 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
             }
             const [withoutFiles] = await connection.query(
                 `
-                SELECT MIN(id) AS id,
-                       team_label AS team_name,
-                       team_label AS participant_name
+                SELECT t.min_id AS id,
+                       t.team_label AS team_name,
+                       t.team_label AS participant_name,
+                       CASE WHEN bc.id IS NULL THEN 0 ELSE 1 END AS is_best_category
                 FROM (
-                    SELECT id,
-                           COALESCE(NULLIF(team_name,''), participant_name) AS team_label
-                    FROM participant
-                    WHERE event_id = ?
+                    SELECT MIN(id) AS min_id,
+                           team_label
+                    FROM (
+                        SELECT id,
+                               COALESCE(NULLIF(team_name,''), participant_name) AS team_label
+                        FROM participant
+                        WHERE event_id = ?
+                    ) grouped
+                    GROUP BY team_label
                 ) t
-                GROUP BY team_label
-                ORDER BY team_label
+                LEFT JOIN panelist_best_category bc
+                    ON bc.participant_id = t.min_id
+                   AND bc.panelist_id = ?
+                   AND bc.event_id = ?
+                ORDER BY t.team_label
                 `,
-                [event_id]
+                [event_id, panelistId, event_id]
             );
             participants = withoutFiles.map(p => ({ ...p, pdf_file_path: null, ppt_file_path: null }));
         }
@@ -545,6 +603,93 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
         res.json({ success: true, data: participants });
     } catch (error) {
         console.error('getEventParticipantsForPanelist error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+exports.toggleBestCategorySelection = async (req, res) => {
+    try {
+        const panelistId = Number(req.user.id);
+        const eventId = Number(req.body.event_id);
+        const participantId = Number(req.body.participant_id);
+        const isBest = Boolean(req.body.is_best);
+
+        if (!Number.isFinite(panelistId) || !Number.isFinite(eventId) || !Number.isFinite(participantId)) {
+            return res.status(400).json({ success: false, message: ERROR_MESSAGES.MISSING_REQUIRED_FIELDS });
+        }
+
+        const connection = await pool.getConnection();
+        await ensureBestCategoryTable(connection);
+
+        const [assignmentRows] = await connection.query(
+            'SELECT id FROM panelist_event_assignment WHERE panelist_id = ? AND event_id = ? LIMIT 1',
+            [panelistId, eventId]
+        );
+        if (!assignmentRows.length) {
+            connection.release();
+            return res.status(403).json({ success: false, message: 'Panelist is not assigned to this event' });
+        }
+
+        const [participantRows] = await connection.query(
+            'SELECT id FROM participant WHERE id = ? AND event_id = ? LIMIT 1',
+            [participantId, eventId]
+        );
+        if (!participantRows.length) {
+            connection.release();
+            return res.status(404).json({ success: false, message: ERROR_MESSAGES.PARTICIPANT_NOT_FOUND });
+        }
+
+        if (isBest) {
+            await connection.query(
+                `INSERT INTO panelist_best_category (panelist_id, event_id, participant_id)
+                 VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE created_at = CURRENT_TIMESTAMP`,
+                [panelistId, eventId, participantId]
+            );
+        } else {
+            await connection.query(
+                'DELETE FROM panelist_best_category WHERE panelist_id = ? AND event_id = ? AND participant_id = ?',
+                [panelistId, eventId, participantId]
+            );
+        }
+
+        connection.release();
+        res.json({ success: true, message: SUCCESS_MESSAGES.UPDATED_SUCCESS });
+    } catch (error) {
+        console.error('toggleBestCategorySelection error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+exports.getTopBestCategoryParticipants = async (req, res) => {
+    try {
+        const eventId = Number(req.params.event_id);
+        if (!Number.isFinite(eventId)) {
+            return res.status(400).json({ success: false, message: ERROR_MESSAGES.MISSING_REQUIRED_FIELDS });
+        }
+
+        const connection = await pool.getConnection();
+        await ensureBestCategoryTable(connection);
+        const [rows] = await connection.query(
+            `
+            SELECT p.id,
+                   COALESCE(NULLIF(p.team_name, ''), p.participant_name) AS participant_label,
+                   p.team_name,
+                   p.problem_name,
+                   COUNT(bc.id) AS votes
+            FROM panelist_best_category bc
+            JOIN participant p ON p.id = bc.participant_id
+            WHERE bc.event_id = ?
+            GROUP BY p.id, p.team_name, p.participant_name, p.problem_name
+            ORDER BY votes DESC, participant_label ASC
+            LIMIT 3
+            `,
+            [eventId]
+        );
+        connection.release();
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error('getTopBestCategoryParticipants error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };

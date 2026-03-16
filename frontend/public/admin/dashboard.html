@@ -108,12 +108,23 @@
                                         <option value="desc">Highest to Lowest</option>
                                         <option value="asc">Lowest to Highest</option>
                                     </select>
+                                    <select id="participantProblemNameInput" name="participantProblemNameInput" class="search-box" style="min-width:170px; padding:0.45rem 0.8rem;">
+                                        <option value="">All Problems</option>
+                                        <option value="smartload">smartload</option>
+                                        <option value="roomsyn">roomsyn</option>
+                                        <option value="evalpro">evalpro</option>
+                                        <option value="concerntrack">concerntrack</option>
+                                    </select>
                                     <input type="number" id="participantsLimitInput" name="participantsLimit" class="search-box" placeholder="Limit (e.g., 10)" min="1" style="width:120px; padding:0.45rem 0.8rem;">
                                     <button id="applyParticipantSortBtn" class="btn btn-secondary">Apply</button>
                                 </div>
                                 <button id="deleteAllParticipantsBtn" class="btn btn-danger" style="background:#b33b32;">Delete All</button>
                                 <button id="addParticipantBtn" class="btn btn-primary">+ Add Participant</button>
                             </div>
+                        </div>
+                        <div id="topBestCategoryBox" style="background:#fff8f6; border:1px solid #f0d3cf; border-radius:12px; padding:10px 12px; margin-bottom:10px;">
+                            <strong style="color:#9B0F06;">Top 3 Best in Category</strong>
+                            <div id="topBestCategoryList" class="text-muted" style="margin-top:6px;">No votes yet.</div>
                         </div>
                         <div id="participantsList" class="participants-list"></div>
                     </div>
@@ -262,6 +273,16 @@
                 <div class="form-group">
                     <label for="teamNameInput">Team Name *</label>
                     <input type="text" id="teamNameInput" name="teamName" placeholder="e.g., Team Alpha" required>
+                </div>
+                <div class="form-group">
+                    <label for="participantProblemNameModal">Problem Name</label>
+                    <select id="participantProblemNameModal" name="participantProblemNameModal">
+                        <option value="">Select problem</option>
+                        <option value="smartload">smartload</option>
+                        <option value="roomsyn">roomsyn</option>
+                        <option value="evalpro">evalpro</option>
+                        <option value="concerntrack">concerntrack</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>Enrollment Count: <span id="teamEnrollmentCount">0</span></label>

@@ -6,6 +6,7 @@ let currentTeamName = ''; // track team for member listing
 let currentTeamMembers = [];
 let participantSortDirection = 'desc';
 let participantLimit = null;
+let participantProblemNameFilter = '';
 
 function resetParticipantModalState() {
     currentParticipantId = null;
@@ -110,6 +111,7 @@ async function selectEvent(eventId) {
         
         // Load participants
         loadEventParticipants(eventId);
+        loadTopBestCategory(eventId);
         
         // Load criteria
         loadEventCriteria(result.data.criteria);
@@ -141,6 +143,7 @@ async function loadEventParticipants(eventId) {
                         total_score: 0,
                         reg: p.registration_number,
                         ids: [],
+                        problem_name: p.problem_name || '',
                         pdf_file_path: p.pdf_file_path || null,
                         ppt_file_path: p.ppt_file_path || null
                     };
@@ -151,6 +154,7 @@ async function loadEventParticipants(eventId) {
                     groups[key].total_score += parseFloat(p.total_score);
                 }
                 if (!groups[key].reg && p.registration_number) groups[key].reg = p.registration_number;
+                if (!groups[key].problem_name && p.problem_name) groups[key].problem_name = p.problem_name;
                 if (!groups[key].pdf_file_path && p.pdf_file_path) groups[key].pdf_file_path = p.pdf_file_path;
                 if (!groups[key].ppt_file_path && p.ppt_file_path) groups[key].ppt_file_path = p.ppt_file_path;
             });
@@ -163,7 +167,13 @@ async function loadEventParticipants(eventId) {
                 return participantSortDirection === 'asc' ? tA - tB : tB - tA;
             });
 
-            const limited = participantLimit ? sorted.slice(0, participantLimit) : sorted;
+            const filtered = participantProblemNameFilter
+                ? sorted.filter(group => {
+                    return (group.problem_name || '').toLowerCase() === participantProblemNameFilter.toLowerCase();
+                })
+                : sorted;
+
+            const limited = participantLimit ? filtered.slice(0, participantLimit) : filtered;
 
             const renderParticipants = (participants) => participants.map((teamGroup, idx) => `
                 <div class="participant-card">
@@ -182,6 +192,7 @@ async function loadEventParticipants(eventId) {
                         </div>
                         <div class="event-card-info">
                             <div><strong>Reg Number:</strong> ${teamGroup.reg || 'N/A'}</div>
+                            <div><strong>Problem:</strong> ${teamGroup.problem_name || 'N/A'}</div>
                         </div>
                     </div>
                     <div class="event-card-actions">
@@ -202,6 +213,31 @@ async function loadEventParticipants(eventId) {
             participantsList.innerHTML = renderParticipants(limited);
         }
     }
+}
+
+async function loadTopBestCategory(eventId) {
+    const box = document.getElementById('topBestCategoryList');
+    if (!box) return;
+
+    box.textContent = 'Loading top 3...';
+    const result = await adminApi.getTopBestCategory(eventId);
+    if (!result.success) {
+        box.textContent = result.message || 'Unable to load Top 3.';
+        return;
+    }
+
+    const rows = Array.isArray(result.data) ? result.data : [];
+    if (!rows.length) {
+        box.textContent = 'No votes yet.';
+        return;
+    }
+
+    box.innerHTML = rows.map((row, idx) => `
+        <div style="display:flex; justify-content:space-between; gap:8px; padding:4px 0;">
+            <span><strong>#${idx + 1}</strong> ${row.participant_label}${row.problem_name ? ` (${row.problem_name})` : ''}</span>
+            <span style="font-weight:700; color:#9B0F06;">${row.votes} vote${Number(row.votes) === 1 ? '' : 's'}</span>
+        </div>
+    `).join('');
 }
 
 async function loadEventCriteria(criteria) {
@@ -679,11 +715,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const sortDirSelect = document.getElementById('participantSortDirection');
+    const problemNameInput = document.getElementById('participantProblemNameInput');
     const limitInput = document.getElementById('participantsLimitInput');
     const applySortBtn = document.getElementById('applyParticipantSortBtn');
     if (applySortBtn && sortDirSelect && limitInput) {
         applySortBtn.addEventListener('click', () => {
             participantSortDirection = sortDirSelect.value === 'asc' ? 'asc' : 'desc';
+            participantProblemNameFilter = (problemNameInput?.value || '').trim();
             const limitVal = parseInt(limitInput.value, 10);
             participantLimit = isNaN(limitVal) || limitVal <= 0 ? null : limitVal;
             if (currentEventId) loadEventParticipants(currentEventId);
@@ -736,6 +774,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addParticipantBtn) {
         addParticipantBtn.addEventListener('click', () => {
             document.getElementById('addParticipantForm').reset();
+            const problemInput = document.getElementById('participantProblemNameModal');
+            if (problemInput) problemInput.value = '';
             resetMembersForm();
             updateTeamEnrollmentCount();
             showModal('addParticipantModal');
@@ -987,6 +1027,7 @@ async function handleAddParticipant(e) {
 
     const eventId = currentEventId || sessionStorage.getItem('currentEventId');
     const teamName = document.getElementById('teamNameInput').value;
+    const problemName = document.getElementById('participantProblemNameModal')?.value || '';
 
     if (!eventId) {
         alert('No event selected. Please choose an event before adding participants.');
@@ -1015,6 +1056,7 @@ async function handleAddParticipant(e) {
     const payload = {
         event_id: eventId,
         team_name: teamName.trim(),
+        problem_name: problemName,
         members: members
     };
     console.log('Adding team participants payload:', payload);
@@ -1174,6 +1216,7 @@ function buildTopParticipantsFromRows(participants) {
             participantName: (row.participant_name || '').trim(),
             teamName: (row.team_name || '').trim() || null,
             registrationNumber: row.registration_number || null,
+            problemName: row.problem_name || '',
             score: Number.isFinite(parseFloat(row.total_score)) ? parseFloat(row.total_score) : null
         }))
         .filter((row) => row.participantName && row.score !== null)
@@ -1262,7 +1305,8 @@ async function createTopParticipantsEvent() {
                 event_id: newEventId,
                 participant_name: participant.participantName,
                 team_name: participant.teamName,
-                registration_number: participant.registrationNumber
+                registration_number: participant.registrationNumber,
+                problem_name: participant.problemName
             });
             if (addResult.success) {
                 insertedParticipants += 1;
@@ -1289,6 +1333,14 @@ function openAddMemberForTeam(teamName) {
     resetMembersForm();
     teamInput.value = teamName || '';
     teamInput.readOnly = true;
+    const problemSelect = document.getElementById('participantProblemNameModal');
+    if (problemSelect && currentEventId) {
+        adminApi.getEventParticipants(currentEventId).then((result) => {
+            if (!result.success) return;
+            const match = (result.data || []).find(p => (p.team_name || '') === (teamName || '') && p.problem_name);
+            if (match) problemSelect.value = String(match.problem_name).toLowerCase();
+        });
+    }
     updateRemoveButtonVisibility();
     updateTeamEnrollmentCount();
     showModal('addParticipantModal');

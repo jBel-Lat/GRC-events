@@ -234,7 +234,11 @@ async function selectEvent(eventId, eventName) {
             participantsList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👥</div><p>No participants in this event</p></div>';
         } else {
             participantsList.innerHTML = result.data.map(participant => `
-                <div class="participant-card" onclick='selectParticipant(${eventId}, ${participant.id}, ${JSON.stringify(participant.participant_name)}, ${JSON.stringify(participant.team_name || "")})'>
+                <div class="participant-card" style="position:relative;" onclick='selectParticipant(${eventId}, ${participant.id}, ${JSON.stringify(participant.participant_name)}, ${JSON.stringify(participant.team_name || "")})'>
+                    <label style="position:absolute; top:10px; right:10px; display:flex; gap:6px; align-items:center; font-size:0.85rem; font-weight:600; color:#9B0F06; background:#fff8f6; border:1px solid #f0d3cf; border-radius:999px; padding:4px 8px;" onclick="event.stopPropagation();">
+                        <input type="checkbox" ${participant.is_best_category ? 'checked' : ''} onchange="toggleBestCategoryCheckbox(${eventId}, ${participant.id}, this, event)">
+                        Best in Category
+                    </label>
                     <h3>${participant.participant_name}</h3>
                     <div class="event-card-info">
                         <div><strong>Team:</strong> ${participant.team_name || 'N/A'}</div>
@@ -252,6 +256,16 @@ async function selectEvent(eventId, eventName) {
     }
 
     switchSection('participants');
+}
+
+async function toggleBestCategoryCheckbox(eventId, participantId, checkboxEl, domEvent) {
+    if (domEvent) domEvent.stopPropagation();
+    const intended = Boolean(checkboxEl.checked);
+    const result = await panelistApi.setBestCategory(eventId, participantId, intended);
+    if (!result.success) {
+        checkboxEl.checked = !intended;
+        alert(result.message || 'Failed to update Best in Category.');
+    }
 }
 
 async function selectParticipant(eventId, participantId, participantName, teamName) {

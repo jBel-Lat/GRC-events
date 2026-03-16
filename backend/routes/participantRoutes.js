@@ -5,6 +5,7 @@ const { adminAuthMiddleware, panelistAuthMiddleware, studentAuthMiddleware, auth
 
 // Admin routes
 router.get('/admin/event/:event_id', adminAuthMiddleware, participantController.getEventParticipants);
+router.get('/admin/event/:event_id/top-best-category', adminAuthMiddleware, participantController.getTopBestCategoryParticipants);
 router.get('/admin/:event_id/:participant_id/breakdown', adminAuthMiddleware, participantController.getParticipantGradesBreakdown);
 router.get('/admin/:event_id/:participant_id', adminAuthMiddleware, participantController.getParticipantDetails);
 router.post('/admin/add', adminAuthMiddleware, participantController.addParticipant);
@@ -24,6 +25,7 @@ router.get('/admin/export-teams-custom', adminAuthMiddleware, participantControl
 
 // Panelist routes
 router.get('/panelist/event/:event_id', panelistAuthMiddleware, participantController.getEventParticipantsForPanelist);
+router.post('/panelist/best-category', panelistAuthMiddleware, participantController.toggleBestCategorySelection);
 router.get('/panelist/:event_id/:participant_id', panelistAuthMiddleware, participantController.getPanelistParticipantGrades);
 router.post('/grade/submit', panelistAuthMiddleware, participantController.submitGrade);
 
