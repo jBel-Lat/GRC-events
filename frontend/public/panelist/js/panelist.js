@@ -6,6 +6,22 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
 });
 
+function escapeHtml(text) {
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatCriteriaDetails(criteria) {
+    const rawDetails = criteria.criteria_details ?? criteria.details ?? criteria.description ?? '';
+    const trimmed = String(rawDetails).trim();
+    if (!trimmed) return '';
+    return escapeHtml(trimmed).replace(/\r?\n/g, '<br>');
+}
+
 function enforceMobileSidebarLayout() {
     const isMobileLike = window.matchMedia('(max-width: 1024px), (hover: none) and (pointer: coarse)').matches;
     const sidebar = document.querySelector('.sidebar');
@@ -249,11 +265,13 @@ async function selectParticipant(eventId, participantId, participantName, teamNa
     if (result.success) {
         const gradingForm = document.getElementById('gradingForm');
 
-        gradingForm.innerHTML = result.data.map(criteria => `
+        gradingForm.innerHTML = result.data.map(criteria => {
+            const detailsHtml = formatCriteriaDetails(criteria);
+            return `
             <div class="grading-item" data-criteria-id="${criteria.id}">
                 <div class="grading-item-header">
-                    <div class="grading-item-title">${criteria.criteria_name}</div>
-                    ${criteria.criteria_details ? `<div class="text-muted" style="font-size:0.9rem; margin: 2px 0 4px;">${criteria.criteria_details}</div>` : ''}
+                    <div class="grading-item-title">${escapeHtml(criteria.criteria_name)}</div>
+                    ${detailsHtml ? `<div class="text-muted" style="font-size:0.9rem; margin: 2px 0 4px; white-space: normal;">${detailsHtml}</div>` : ''}
                     <div class="grading-percentage">${criteria.percentage}% Weight | Max Score: ${criteria.max_score}</div>
                 </div>
                 <div class="grading-input-group">
@@ -268,7 +286,8 @@ async function selectParticipant(eventId, participantId, participantName, teamNa
                     <small class="max-note">Max: ${criteria.max_score}</small>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         const hasExistingGrades = result.data.some(criteria => criteria.existing_score !== null && criteria.existing_score !== undefined);
         if (hasExistingGrades) {
