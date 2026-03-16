@@ -38,11 +38,12 @@ function checkAdminAuth() {
 
     if (!token && !isLoginPage) {
         window.location.href = '/admin/';
+        return false;
     }
 
     if (token && isLoginPage) {
         window.location.href = '/admin/dashboard.html';
-        return;
+        return false;
     }
 
     // Prevent browser back navigation from returning to login after authenticated
@@ -52,6 +53,8 @@ function checkAdminAuth() {
         window.removeEventListener('popstate', preventBack);
         window.addEventListener('popstate', preventBack);
     }
+
+    return !!token || isLoginPage;
 }
 
 function displayAdminName() {
@@ -243,10 +246,12 @@ function hideModal(modalId) {
 document.addEventListener('DOMContentLoaded', () => {
     const eventsSection = document.getElementById('eventsSection');
     enforceMobileSidebarLayout();
+    if (!checkAdminAuth()) return;
+
     if (eventsSection) {
+        // Load only the default section on startup to avoid unnecessary protected
+        // requests before auth settles, especially on slow redirects.
         loadEvents();
-        loadPanelists();
-        loadStudents();
         setupEventSearchListeners();
         setupParticipantSearchListeners();
         setupPanelistSearchListeners();

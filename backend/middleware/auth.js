@@ -1,7 +1,16 @@
 const jwt = require('jsonwebtoken');
 
 const authMiddleware = (req, res, next) => {
-    const token = req.headers['authorization']?.split(' ')[1];
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'] || '';
+    const bearerMatch = String(authHeader).match(/^Bearer\s+(.+)$/i);
+    const token = (bearerMatch && bearerMatch[1]) || req.headers['x-access-token'] || null;
+
+    if (!process.env.JWT_SECRET) {
+        return res.status(500).json({
+            success: false,
+            message: 'JWT secret is not configured on server'
+        });
+    }
 
     if (!token) {
         return res.status(401).json({

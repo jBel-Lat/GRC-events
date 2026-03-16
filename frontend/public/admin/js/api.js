@@ -7,16 +7,41 @@ const API_BASE_URL = (window.location.hostname === 'localhost' && window.locatio
 class AdminApi {
     constructor() {
         this.token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+        this.authRedirectInProgress = false;
+    }
+
+    isOnAdminLoginPage() {
+        const path = window.location.pathname || '';
+        return (
+            path === '/admin/' ||
+            path === '/admin' ||
+            path.endsWith('/admin/index.html') ||
+            path.endsWith('/index.html')
+        );
+    }
+
+    handleUnauthorized(message = '') {
+        if (this.authRedirectInProgress) return;
+        this.authRedirectInProgress = true;
+        this.logout();
+
+        if (!this.isOnAdminLoginPage()) {
+            const reason = encodeURIComponent(message || 'Session expired. Please log in again.');
+            window.location.href = `/admin/?reason=${reason}`;
+        }
     }
 
     getHeaders() {
         // Always pull latest token in case it changed.
         // No redirect here to avoid redirect loops during failed auth/API retries.
         this.token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-        return {
-            'Content-Type': 'application/json',
-            'Authorization': this.token ? `Bearer ${this.token}` : ''
+        const headers = {
+            'Content-Type': 'application/json'
         };
+        if (this.token) {
+            headers['Authorization'] = `Bearer ${this.token}`;
+        }
+        return headers;
     }
 
     async login(username, password) {
@@ -53,7 +78,11 @@ class AdminApi {
             const response = await fetch(`${API_BASE_URL}/events`, {
                 headers: this.getHeaders()
             });
-            return await response.json();
+            const data = await response.json();
+            if (response.status === 401) {
+                this.handleUnauthorized(data?.message);
+            }
+            return data;
         } catch (error) {
             console.error('Get events error:', error);
             return { success: false, message: 'Network error' };
@@ -358,7 +387,11 @@ class AdminApi {
             const response = await fetch(`${API_BASE_URL}/panelists`, {
                 headers: this.getHeaders()
             });
-            return await response.json();
+            const data = await response.json();
+            if (response.status === 401) {
+                this.handleUnauthorized(data?.message);
+            }
+            return data;
         } catch (error) {
             console.error('Get panelists error:', error);
             return { success: false, message: 'Network error' };
@@ -451,7 +484,11 @@ class AdminApi {
             const response = await fetch(`${API_BASE_URL}/students`, {
                 headers: this.getHeaders()
             });
-            return await response.json();
+            const data = await response.json();
+            if (response.status === 401) {
+                this.handleUnauthorized(data?.message);
+            }
+            return data;
         } catch (error) {
             console.error('Get students error:', error);
             return { success: false, message: 'Network error' };
@@ -576,7 +613,11 @@ class AdminApi {
                 headers: this.getHeaders(),
                 cache: 'no-store'
             });
-            return await response.json();
+            const data = await response.json();
+            if (response.status === 401) {
+                this.handleUnauthorized(data?.message);
+            }
+            return data;
         } catch (error) {
             console.error('Get submissions error:', error);
             return { success: false, message: 'Network error' };
