@@ -189,16 +189,31 @@ async function ensureSubmissionsTable(connection) {
         try {
             await connection.query(sql);
         } catch (err) {
-            if (!(err && (err.code === 'ER_DUP_FIELDNAME' || (err.message && err.message.toLowerCase().includes('duplicate column'))))) {
-                throw err;
-            }
-        }
-    }
+            const msg = (err && err.message ? err.message.toLowerCase() : '');
+            const isDuplicateField = err && (err.code === 'ER_DUP_FIELDNAME' || msg.includes('duplicate column'));
+            if (isDuplicateField) continue;
 
-    try {
-        await connection.query('ALTER TABLE submissions ADD UNIQUE KEY unique_submission (team_name, problem_name)');
-    } catch (err) {
-        if (!(err && (err.code === 'ER_DUP_KEYNAME' || (err.message && err.message.toLowerCase().includes('duplicate key name'))))) {
+            // Older MySQL variants can reject TIMESTAMP defaults; retry with DATETIME nullable.
+            if (sql.includes('ADD COLUMN created_at')) {
+                try {
+                    await connection.query('ALTER TABLE submissions ADD COLUMN created_at DATETIME NULL');
+                    continue;
+                } catch (retryErr) {
+                    const retryMsg = (retryErr && retryErr.message ? retryErr.message.toLowerCase() : '');
+                    if (retryErr && (retryErr.code === 'ER_DUP_FIELDNAME' || retryMsg.includes('duplicate column'))) continue;
+                    throw retryErr;
+                }
+            }
+            if (sql.includes('ADD COLUMN updated_at')) {
+                try {
+                    await connection.query('ALTER TABLE submissions ADD COLUMN updated_at DATETIME NULL');
+                    continue;
+                } catch (retryErr) {
+                    const retryMsg = (retryErr && retryErr.message ? retryErr.message.toLowerCase() : '');
+                    if (retryErr && (retryErr.code === 'ER_DUP_FIELDNAME' || retryMsg.includes('duplicate column'))) continue;
+                    throw retryErr;
+                }
+            }
             throw err;
         }
     }
@@ -329,20 +344,33 @@ exports.importFromGoogleSheet = async (req, res) => {
             }
             const safeTeamLeader = teamLeader || 'N/A';
 
-            await connection.query(
+            const normalizedProblem = problemName || null;
+            const [updateResult] = await connection.query(
                 `
-                INSERT INTO submissions
-                    (team_name, team_leader, team_members, problem_name, pdf_link, video_link)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    team_leader = VALUES(team_leader),
-                    team_members = VALUES(team_members),
-                    pdf_link = VALUES(pdf_link),
-                    video_link = VALUES(video_link),
+                UPDATE submissions
+                SET
+                    team_leader = ?,
+                    team_members = ?,
+                    problem_name = ?,
+                    pdf_link = ?,
+                    video_link = ?,
                     updated_at = CURRENT_TIMESTAMP
+                WHERE team_name = ?
+                  AND ((problem_name IS NULL AND ? IS NULL) OR problem_name = ?)
                 `,
-                [teamName, safeTeamLeader, teamMembers || null, problemName || null, pdfUrl, videoUrl]
+                [safeTeamLeader, teamMembers || null, normalizedProblem, pdfUrl, videoUrl, teamName, normalizedProblem, normalizedProblem]
             );
+
+            if (!updateResult || !updateResult.affectedRows) {
+                await connection.query(
+                    `
+                    INSERT INTO submissions
+                        (team_name, team_leader, team_members, problem_name, pdf_link, video_link)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    `,
+                    [teamName, safeTeamLeader, teamMembers || null, normalizedProblem, pdfUrl, videoUrl]
+                );
+            }
             imported += 1;
         }
 
@@ -364,7 +392,12 @@ exports.getSubmissions = async (req, res) => {
         connection = await pool.getConnection();
         await ensureSubmissionsTable(connection);
 
-        const [rows] = await connection.query(`SELECT * FROM submissions ORDER BY updated_at DESC`);
+        const [rows] = await connection.query(`
+            SELECT * FROM submissions
+            ORDER BY
+                COALESCE(updated_at, created_at) DESC,
+                id DESC
+        `);
         return res.json({ success: true, data: rows });
     } catch (error) {
         console.error('getSubmissions error:', error);
