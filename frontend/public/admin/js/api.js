@@ -276,6 +276,22 @@ class AdminApi {
         }
     }
 
+    async uploadParticipantFiles(participantId, formData) {
+        try {
+            const headers = this.getHeaders();
+            delete headers['Content-Type'];
+            const response = await fetch(`${API_BASE_URL}/participants/admin/${participantId}/files`, {
+                method: 'POST',
+                headers,
+                body: formData
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Upload participant files error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
     async updateParticipant(participantId, participantData) {
         try {
             const response = await fetch(`${API_BASE_URL}/participants/admin/${participantId}`, {

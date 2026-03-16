@@ -2,6 +2,8 @@ const pool = require('../config/database');
 const { SUCCESS_MESSAGES, ERROR_MESSAGES } = require('../config/constants');
 const XLSX = require('xlsx');
 const buildTemplateBuffer = require('../templates/hackathon_template');
+const path = require('path');
+const fs = require('fs');
 
 // Helpers
 async function getAdminActorId(connection, req) {
@@ -203,29 +205,63 @@ exports.getEventParticipants = async (req, res) => {
     try {
         const { event_id } = req.params;
         const connection = await pool.getConnection();
-        const [rows] = await connection.query(
-            `
-            SELECT p.id,
-                   p.participant_name,
-                   p.team_name,
-                   p.registration_number,
-                   (
-                     SELECT COALESCE(SUM(
-                        c.percentage * (
-                          (COALESCE((SELECT AVG(g.score) FROM grade g WHERE g.participant_id = p.id AND g.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.panelist_weight / 100) +
-                          (COALESCE((SELECT AVG(sg.score) FROM student_grade sg WHERE sg.participant_id = p.id AND sg.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.student_weight / 100)
-                        )
-                     ),0)
-                     FROM criteria c
-                     WHERE c.event_id = p.event_id
-                   ) AS total_score
-            FROM participant p
-            JOIN event ev ON ev.id = p.event_id
-            WHERE p.event_id = ?
-            ORDER BY p.participant_name
-            `,
-            [event_id]
-        );
+        let rows = [];
+        try {
+            const [withFiles] = await connection.query(
+                `
+                SELECT p.id,
+                       p.participant_name,
+                       p.team_name,
+                       p.registration_number,
+                       p.pdf_file_path,
+                       p.ppt_file_path,
+                       (
+                         SELECT COALESCE(SUM(
+                            c.percentage * (
+                              (COALESCE((SELECT AVG(g.score) FROM grade g WHERE g.participant_id = p.id AND g.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.panelist_weight / 100) +
+                              (COALESCE((SELECT AVG(sg.score) FROM student_grade sg WHERE sg.participant_id = p.id AND sg.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.student_weight / 100)
+                            )
+                         ),0)
+                         FROM criteria c
+                         WHERE c.event_id = p.event_id
+                       ) AS total_score
+                FROM participant p
+                JOIN event ev ON ev.id = p.event_id
+                WHERE p.event_id = ?
+                ORDER BY p.participant_name
+                `,
+                [event_id]
+            );
+            rows = withFiles;
+        } catch (err) {
+            if (!(err.message && err.message.includes('Unknown column'))) {
+                throw err;
+            }
+            const [withoutFiles] = await connection.query(
+                `
+                SELECT p.id,
+                       p.participant_name,
+                       p.team_name,
+                       p.registration_number,
+                       (
+                         SELECT COALESCE(SUM(
+                            c.percentage * (
+                              (COALESCE((SELECT AVG(g.score) FROM grade g WHERE g.participant_id = p.id AND g.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.panelist_weight / 100) +
+                              (COALESCE((SELECT AVG(sg.score) FROM student_grade sg WHERE sg.participant_id = p.id AND sg.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.student_weight / 100)
+                            )
+                         ),0)
+                         FROM criteria c
+                         WHERE c.event_id = p.event_id
+                       ) AS total_score
+                FROM participant p
+                JOIN event ev ON ev.id = p.event_id
+                WHERE p.event_id = ?
+                ORDER BY p.participant_name
+                `,
+                [event_id]
+            );
+            rows = withoutFiles.map(r => ({ ...r, pdf_file_path: null, ppt_file_path: null }));
+        }
         connection.release();
         res.json({ success: true, data: rows });
     } catch (error) {
@@ -438,22 +474,54 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
         const { event_id } = req.params;
         const connection = await pool.getConnection();
         // return one representative row per team (no per-member grading)
-        const [participants] = await connection.query(
-            `
-            SELECT MIN(id) AS id,
-                   team_label AS team_name,
-                   team_label AS participant_name
-            FROM (
-                SELECT id,
-                       COALESCE(NULLIF(team_name,''), participant_name) AS team_label
-                FROM participant
-                WHERE event_id = ?
-            ) t
-            GROUP BY team_label
-            ORDER BY team_label
-            `,
-            [event_id]
-        );
+        let participants = [];
+        try {
+            const [withFiles] = await connection.query(
+                `
+                SELECT t.min_id AS id,
+                       t.team_label AS team_name,
+                       t.team_label AS participant_name,
+                       p.pdf_file_path,
+                       p.ppt_file_path
+                FROM (
+                    SELECT MIN(id) AS min_id,
+                           team_label
+                    FROM (
+                        SELECT id,
+                               COALESCE(NULLIF(team_name,''), participant_name) AS team_label
+                        FROM participant
+                        WHERE event_id = ?
+                    ) grouped
+                    GROUP BY team_label
+                ) t
+                LEFT JOIN participant p ON p.id = t.min_id
+                ORDER BY t.team_label
+                `,
+                [event_id]
+            );
+            participants = withFiles;
+        } catch (err) {
+            if (!(err.message && err.message.includes('Unknown column'))) {
+                throw err;
+            }
+            const [withoutFiles] = await connection.query(
+                `
+                SELECT MIN(id) AS id,
+                       team_label AS team_name,
+                       team_label AS participant_name
+                FROM (
+                    SELECT id,
+                           COALESCE(NULLIF(team_name,''), participant_name) AS team_label
+                    FROM participant
+                    WHERE event_id = ?
+                ) t
+                GROUP BY team_label
+                ORDER BY team_label
+                `,
+                [event_id]
+            );
+            participants = withoutFiles.map(p => ({ ...p, pdf_file_path: null, ppt_file_path: null }));
+        }
         connection.release();
         res.json({ success: true, data: participants });
     } catch (error) {
@@ -638,8 +706,103 @@ exports.submitGradeByStudent = async (req, res) => {
 const multer = require('multer');
 const importUpload = multer({ storage: multer.memoryStorage() });
 
+const participantUploadsDir = path.join(__dirname, '..', 'uploads', 'participants');
+if (!fs.existsSync(participantUploadsDir)) {
+    fs.mkdirSync(participantUploadsDir, { recursive: true });
+}
+
+const participantFileStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, participantUploadsDir),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        const safeExt = ext || '';
+        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+        cb(null, `participant-${req.params.participant_id || 'unknown'}-${unique}${safeExt}`);
+    }
+});
+
+const participantFileUpload = multer({
+    storage: participantFileStorage,
+    fileFilter: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        const isPdf = ext === '.pdf';
+        const isPpt = ext === '.ppt' || ext === '.pptx';
+        if (!isPdf && !isPpt) {
+            cb(new Error('Only PDF, PPT, and PPTX files are allowed.'));
+            return;
+        }
+        cb(null, true);
+    },
+    limits: {
+        fileSize: 25 * 1024 * 1024 // 25MB per file
+    }
+});
+
 // export the middleware for routes
 exports.importUploadMiddleware = importUpload.single('file');
+exports.participantFilesUploadMiddleware = participantFileUpload.fields([
+    { name: 'pdf_file', maxCount: 1 },
+    { name: 'ppt_file', maxCount: 1 }
+]);
+
+exports.uploadParticipantFiles = async (req, res) => {
+    try {
+        const { participant_id } = req.params;
+        const files = req.files || {};
+        const pdfFile = files.pdf_file && files.pdf_file[0] ? files.pdf_file[0] : null;
+        const pptFile = files.ppt_file && files.ppt_file[0] ? files.ppt_file[0] : null;
+
+        if (!pdfFile && !pptFile) {
+            return res.status(400).json({ success: false, message: 'Please upload a PDF or PPT/PPTX file.' });
+        }
+
+        const connection = await pool.getConnection();
+        const [participantRows] = await connection.query(
+            'SELECT id FROM participant WHERE id = ? LIMIT 1',
+            [participant_id]
+        );
+
+        if (!participantRows.length) {
+            connection.release();
+            return res.status(404).json({ success: false, message: ERROR_MESSAGES.PARTICIPANT_NOT_FOUND });
+        }
+
+        const updates = [];
+        const params = [];
+        if (pdfFile) {
+            updates.push('pdf_file_path = ?');
+            params.push(`/uploads/participants/${pdfFile.filename}`);
+        }
+        if (pptFile) {
+            updates.push('ppt_file_path = ?');
+            params.push(`/uploads/participants/${pptFile.filename}`);
+        }
+        params.push(participant_id);
+
+        try {
+            await connection.query(`UPDATE participant SET ${updates.join(', ')} WHERE id = ?`, params);
+        } catch (err) {
+            connection.release();
+            if (err.message && err.message.includes('Unknown column')) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Database is missing participant file columns. Run database/add_participant_files.sql first.'
+                });
+            }
+            throw err;
+        }
+        const [updated] = await connection.query(
+            'SELECT id, pdf_file_path, ppt_file_path FROM participant WHERE id = ? LIMIT 1',
+            [participant_id]
+        );
+        connection.release();
+
+        res.json({ success: true, data: updated[0] });
+    } catch (error) {
+        console.error('uploadParticipantFiles error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Server error' });
+    }
+};
 
 exports.importTeams = async (req, res) => {
     try {

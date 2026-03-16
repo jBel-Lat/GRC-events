@@ -135,7 +135,15 @@ async function loadEventParticipants(eventId) {
             result.data.forEach(p => {
                 const key = (p.team_name || 'N/A');
                 if (!groups[key]) {
-                    groups[key] = { team: key, members: [], total_score: 0, reg: p.registration_number, ids: [] };
+                    groups[key] = {
+                        team: key,
+                        members: [],
+                        total_score: 0,
+                        reg: p.registration_number,
+                        ids: [],
+                        pdf_file_path: p.pdf_file_path || null,
+                        ppt_file_path: p.ppt_file_path || null
+                    };
                 }
                 groups[key].members.push(p.participant_name);
                 groups[key].ids.push(p.id);
@@ -143,6 +151,8 @@ async function loadEventParticipants(eventId) {
                     groups[key].total_score += parseFloat(p.total_score);
                 }
                 if (!groups[key].reg && p.registration_number) groups[key].reg = p.registration_number;
+                if (!groups[key].pdf_file_path && p.pdf_file_path) groups[key].pdf_file_path = p.pdf_file_path;
+                if (!groups[key].ppt_file_path && p.ppt_file_path) groups[key].ppt_file_path = p.ppt_file_path;
             });
 
             const grouped = Object.values(groups);
@@ -176,7 +186,15 @@ async function loadEventParticipants(eventId) {
                     </div>
                     <div class="event-card-actions">
                         <button class="btn btn-secondary" onclick="openAddMemberForTeam('${teamGroup.team.replace(/'/g, "\\'")}'); event.stopPropagation();">+ Add Member</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('participantPdfFile-${teamGroup.ids[0]}').click(); event.stopPropagation();">Upload PDF</button>
+                        <input type="file" id="participantPdfFile-${teamGroup.ids[0]}" accept=".pdf,application/pdf" style="display:none;" onchange="handleParticipantSingleFileSelected(${teamGroup.ids[0]}, this, 'pdf'); event.stopPropagation();">
+                        <button class="btn btn-secondary" onclick="document.getElementById('participantPptFile-${teamGroup.ids[0]}').click(); event.stopPropagation();">Upload PPT</button>
+                        <input type="file" id="participantPptFile-${teamGroup.ids[0]}" accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" style="display:none;" onchange="handleParticipantSingleFileSelected(${teamGroup.ids[0]}, this, 'ppt'); event.stopPropagation();">
                         <button class="btn btn-danger" onclick="deleteTeamParticipants('${teamGroup.team.replace(/'/g, "\\'")}'); event.stopPropagation();">Delete Team</button>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                        ${teamGroup.pdf_file_path ? `<a href="${teamGroup.pdf_file_path}" target="_blank" rel="noopener" class="btn btn-secondary" style="padding:6px 10px;">View PDF</a>` : ''}
+                        ${teamGroup.ppt_file_path ? `<a href="${teamGroup.ppt_file_path}" target="_blank" rel="noopener" class="btn btn-secondary" style="padding:6px 10px;">View PPT</a>` : ''}
                     </div>
                 </div>
             `).join('');
@@ -1102,6 +1120,41 @@ async function handleImportParticipants(e) {
         alert('Network error during import.');
     }
     e.target.value = ''; // reset file input
+}
+
+async function handleParticipantSingleFileSelected(participantId, inputEl, fileType) {
+    const file = inputEl?.files && inputEl.files[0] ? inputEl.files[0] : null;
+    if (!file) return;
+
+    const isPdf = fileType === 'pdf';
+    const isPpt = fileType === 'ppt';
+
+    if (isPdf && !/\.pdf$/i.test(file.name)) {
+        alert('Please select a PDF file.');
+        inputEl.value = '';
+        return;
+    }
+    if (isPpt && !/\.(ppt|pptx)$/i.test(file.name)) {
+        alert('Please select a PPT or PPTX file.');
+        inputEl.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    if (isPdf) formData.append('pdf_file', file);
+    if (isPpt) formData.append('ppt_file', file);
+
+    const result = await adminApi.uploadParticipantFiles(participantId, formData);
+    if (result.success) {
+        alert(`${isPdf ? 'PDF' : 'PPT'} uploaded successfully.`);
+        if (currentEventId) {
+            await loadEventParticipants(currentEventId);
+        }
+    } else {
+        alert(result.message || 'Error uploading file.');
+    }
+
+    inputEl.value = '';
 }
 
 function updateRemoveButtonVisibility() {

@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS participant (
     participant_name VARCHAR(255) NOT NULL,
     team_name VARCHAR(255),
     registration_number VARCHAR(100),
+    pdf_file_path VARCHAR(500),
+    ppt_file_path VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE

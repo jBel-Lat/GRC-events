@@ -8,6 +8,7 @@ router.get('/admin/event/:event_id', adminAuthMiddleware, participantController.
 router.get('/admin/:event_id/:participant_id/breakdown', adminAuthMiddleware, participantController.getParticipantGradesBreakdown);
 router.get('/admin/:event_id/:participant_id', adminAuthMiddleware, participantController.getParticipantDetails);
 router.post('/admin/add', adminAuthMiddleware, participantController.addParticipant);
+router.post('/admin/:participant_id/files', adminAuthMiddleware, participantController.participantFilesUploadMiddleware, participantController.uploadParticipantFiles);
 router.put('/admin/:id', adminAuthMiddleware, participantController.updateParticipant);
 router.delete('/admin/:id', adminAuthMiddleware, participantController.deleteParticipant);
 router.delete('/admin/event/:event_id/participants', adminAuthMiddleware, participantController.deleteAllParticipantsForEvent);
