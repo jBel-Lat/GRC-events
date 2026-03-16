@@ -1114,35 +1114,17 @@ function updateRemoveButtonVisibility() {
     });
 }
 
-function buildTopTeamsFromParticipants(participants) {
-    const teams = new Map();
-
-    participants.forEach((row) => {
-        const teamName = (row.team_name || row.participant_name || '').trim();
-        if (!teamName) return;
-
-        const memberName = (row.participant_name || '').trim();
-        const rowScore = Number.isFinite(parseFloat(row.total_score)) ? parseFloat(row.total_score) : 0;
-
-        if (!teams.has(teamName)) {
-            teams.set(teamName, {
-                teamName,
-                members: [],
-                // Use max member score as team score to avoid score inflation from per-member rows.
-                score: rowScore
-            });
-        }
-
-        const team = teams.get(teamName);
-        if (memberName && !team.members.includes(memberName)) {
-            team.members.push(memberName);
-        }
-        if (rowScore > team.score) {
-            team.score = rowScore;
-        }
-    });
-
-    return Array.from(teams.values()).sort((a, b) => b.score - a.score);
+function buildTopParticipantsFromRows(participants) {
+    return (participants || [])
+        .map((row) => ({
+            id: row.id,
+            participantName: (row.participant_name || '').trim(),
+            teamName: (row.team_name || '').trim() || null,
+            registrationNumber: row.registration_number || null,
+            score: Number.isFinite(parseFloat(row.total_score)) ? parseFloat(row.total_score) : null
+        }))
+        .filter((row) => row.participantName && row.score !== null)
+        .sort((a, b) => b.score - a.score);
 }
 
 async function createTopParticipantsEvent() {
@@ -1179,22 +1161,22 @@ async function createTopParticipantsEvent() {
             return;
         }
 
-        const rankedTeams = buildTopTeamsFromParticipants(participantsResult.data || []);
-        const selectedTeams = rankedTeams.slice(0, topCount);
+        const rankedParticipants = buildTopParticipantsFromRows(participantsResult.data || []);
+        const selectedParticipants = rankedParticipants.slice(0, topCount);
 
-        if (selectedTeams.length === 0) {
-            alert('No ranked teams found for this event yet.');
+        if (selectedParticipants.length === 0) {
+            alert('No ranked participants found for this event yet.');
             return;
         }
 
         const sourceEvent = eventDetailsResult.data?.event || {};
         const sourceCriteria = Array.isArray(eventDetailsResult.data?.criteria) ? eventDetailsResult.data.criteria : [];
         const providedName = (eventNameInput?.value || '').trim();
-        const newEventName = providedName || `${sourceEvent.event_name || 'Event'} - Top ${selectedTeams.length}`;
+        const newEventName = providedName || `${sourceEvent.event_name || 'Event'} - Top ${selectedParticipants.length} Participants`;
 
         const createResult = await adminApi.createEvent({
             event_name: newEventName,
-            description: `Top ${selectedTeams.length} teams from ${sourceEvent.event_name || 'source event'}`,
+            description: `Top ${selectedParticipants.length} participants from ${sourceEvent.event_name || 'source event'}`,
             start_date: null,
             end_date: null,
             is_tournament: false,
@@ -1205,7 +1187,7 @@ async function createTopParticipantsEvent() {
                     percentage: c.percentage,
                     max_score: c.max_score
                 }))
-                : [{ criteria_name: 'Overall', criteria_details: 'Top teams selection', percentage: 100, max_score: 100 }]
+                : [{ criteria_name: 'Overall', criteria_details: 'Top participants selection', percentage: 100, max_score: 100 }]
         });
 
         if (!createResult.success) {
@@ -1219,20 +1201,20 @@ async function createTopParticipantsEvent() {
             return;
         }
 
-        let insertedTeams = 0;
-        for (const team of selectedTeams) {
-            const members = team.members.length > 0 ? team.members : [team.teamName];
+        let insertedParticipants = 0;
+        for (const participant of selectedParticipants) {
             const addResult = await adminApi.addParticipant({
                 event_id: newEventId,
-                team_name: team.teamName,
-                members
+                participant_name: participant.participantName,
+                team_name: participant.teamName,
+                registration_number: participant.registrationNumber
             });
             if (addResult.success) {
-                insertedTeams += 1;
+                insertedParticipants += 1;
             }
         }
 
-        alert(`Created "${newEventName}" with top ${insertedTeams}/${selectedTeams.length} teams.`);
+        alert(`Created "${newEventName}" with top ${insertedParticipants}/${selectedParticipants.length} participants.`);
         if (eventNameInput) eventNameInput.value = '';
         await loadEvents();
         await selectEvent(newEventId);
