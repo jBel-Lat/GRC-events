@@ -62,12 +62,14 @@ function parseCsv(text) {
 function normalizeDriveLink(link, type) {
     const raw = String(link || '').trim();
     if (!raw) return null;
+    const firstUrlMatch = raw.match(/https?:\/\/[^\s,]+/i);
+    const source = firstUrlMatch ? firstUrlMatch[0] : raw;
     const idMatch =
-        raw.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
-        raw.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
-        raw.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        source.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+        source.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+        source.match(/\/d\/([a-zA-Z0-9_-]+)/);
     const fileId = idMatch ? idMatch[1] : null;
-    if (!fileId) return raw;
+    if (!fileId) return source;
 
     if (type === 'video') {
         return `https://drive.google.com/file/d/${fileId}/preview`;
@@ -79,23 +81,39 @@ async function ensureSubmissionsTable(connection) {
     await connection.query(`
         CREATE TABLE IF NOT EXISTS submissions (
             id INT PRIMARY KEY AUTO_INCREMENT,
-            event_id INT NULL,
-            team_leader_name VARCHAR(255) NOT NULL,
-            team_members_name TEXT NULL,
+            team_name VARCHAR(255) NOT NULL,
+            team_leader VARCHAR(255) NOT NULL,
+            team_members TEXT NULL,
             problem_name VARCHAR(255) NULL,
-            pdf_url TEXT NULL,
-            video_url TEXT NULL,
-            source_sheet_url TEXT NULL,
+            pdf_link TEXT NULL,
+            video_link TEXT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_submission (team_leader_name, problem_name)
+            UNIQUE KEY unique_submission (team_name, problem_name)
         )
     `);
+
+    const alterStatements = [
+        'ALTER TABLE submissions ADD COLUMN team_name VARCHAR(255) NULL',
+        'ALTER TABLE submissions ADD COLUMN team_leader VARCHAR(255) NULL',
+        'ALTER TABLE submissions ADD COLUMN team_members TEXT NULL',
+        'ALTER TABLE submissions ADD COLUMN pdf_link TEXT NULL',
+        'ALTER TABLE submissions ADD COLUMN video_link TEXT NULL'
+    ];
+    for (const sql of alterStatements) {
+        try {
+            await connection.query(sql);
+        } catch (err) {
+            if (!(err && (err.code === 'ER_DUP_FIELDNAME' || (err.message && err.message.toLowerCase().includes('duplicate column'))))) {
+                throw err;
+            }
+        }
+    }
 }
 
 exports.importFromGoogleSheet = async (req, res) => {
     try {
-        const { sheet_url, event_id } = req.body || {};
+        const { sheet_url } = req.body || {};
         const csvUrl = toCsvUrl(sheet_url);
         if (!csvUrl) {
             return res.status(400).json({ success: false, message: 'sheet_url is required.' });
@@ -113,10 +131,8 @@ exports.importFromGoogleSheet = async (req, res) => {
 
         let imported = 0;
         let skipped = 0;
-        const eventIdNum = Number(event_id);
-        const eventId = Number.isFinite(eventIdNum) ? eventIdNum : null;
-
         for (const row of rows) {
+            const teamName = row['Team Name'] || '';
             const teamLeader = row['Team Leader Name'] || '';
             const teamMembers = row['Team Members Name'] || '';
             const problemName = row['Problem Name'] || '';
@@ -126,7 +142,7 @@ exports.importFromGoogleSheet = async (req, res) => {
             const pdfUrl = normalizeDriveLink(rawPdf, 'pdf');
             const videoUrl = normalizeDriveLink(rawVideo, 'video');
 
-            if (!teamLeader || (!pdfUrl && !videoUrl)) {
+            if (!teamName || !teamLeader || (!pdfUrl && !videoUrl)) {
                 skipped += 1;
                 continue;
             }
@@ -134,17 +150,16 @@ exports.importFromGoogleSheet = async (req, res) => {
             await connection.query(
                 `
                 INSERT INTO submissions
-                    (event_id, team_leader_name, team_members_name, problem_name, pdf_url, video_url, source_sheet_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (team_name, team_leader, team_members, problem_name, pdf_link, video_link)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
-                    event_id = VALUES(event_id),
-                    team_members_name = VALUES(team_members_name),
-                    pdf_url = VALUES(pdf_url),
-                    video_url = VALUES(video_url),
-                    source_sheet_url = VALUES(source_sheet_url),
+                    team_leader = VALUES(team_leader),
+                    team_members = VALUES(team_members),
+                    pdf_link = VALUES(pdf_link),
+                    video_link = VALUES(video_link),
                     updated_at = CURRENT_TIMESTAMP
                 `,
-                [eventId, teamLeader, teamMembers || null, problemName || null, pdfUrl, videoUrl, sheet_url]
+                [teamName, teamLeader, teamMembers || null, problemName || null, pdfUrl, videoUrl]
             );
             imported += 1;
         }
@@ -162,19 +177,10 @@ exports.importFromGoogleSheet = async (req, res) => {
 
 exports.getSubmissions = async (req, res) => {
     try {
-        const eventIdNum = Number(req.query.event_id);
-        const hasEvent = Number.isFinite(eventIdNum);
         const connection = await pool.getConnection();
         await ensureSubmissionsTable(connection);
 
-        const [rows] = hasEvent
-            ? await connection.query(
-                `SELECT * FROM submissions WHERE event_id = ? ORDER BY updated_at DESC`,
-                [eventIdNum]
-            )
-            : await connection.query(
-                `SELECT * FROM submissions ORDER BY updated_at DESC`
-            );
+        const [rows] = await connection.query(`SELECT * FROM submissions ORDER BY updated_at DESC`);
         connection.release();
         return res.json({ success: true, data: rows });
     } catch (error) {

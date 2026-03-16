@@ -1667,7 +1667,7 @@ async function importSubmissionsFromGoogleSheet() {
         return;
     }
 
-    const result = await adminApi.importSubmissionsFromGoogleSheet(url, currentEventId || null);
+    const result = await adminApi.importSubmissionsFromGoogleSheet(url, null);
     if (!result.success) {
         alert(result.message || 'Failed to import submissions.');
         return;
@@ -1683,28 +1683,29 @@ async function loadSubmissionsTable(eventId = null) {
     const body = document.getElementById('submissionsTableBody');
     if (!body) return;
 
-    body.innerHTML = '<tr><td colspan="4" class="text-muted" style="padding:10px;">Loading submissions...</td></tr>';
-    const result = await adminApi.getSubmissions(eventId);
+    body.innerHTML = '<tr><td colspan="5" class="text-muted" style="padding:10px;">Loading submissions...</td></tr>';
+    const result = await adminApi.getSubmissions(null);
     if (!result.success) {
-        body.innerHTML = `<tr><td colspan="4" class="text-muted" style="padding:10px;">${result.message || 'Unable to load submissions.'}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="5" class="text-muted" style="padding:10px;">${result.message || 'Unable to load submissions.'}</td></tr>`;
         return;
     }
 
     const rows = Array.isArray(result.data) ? result.data : [];
     if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="4" class="text-muted" style="padding:10px;">No imported submissions yet.</td></tr>';
+        body.innerHTML = '<tr><td colspan="5" class="text-muted" style="padding:10px;">No imported submissions yet.</td></tr>';
         return;
     }
 
     body.innerHTML = rows.map((row) => `
         <tr>
-            <td style="padding:8px; border-bottom:1px solid #f1ede6;">${row.team_leader_name || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #f1ede6;">${row.team_name || ''}</td>
+            <td style="padding:8px; border-bottom:1px solid #f1ede6;">${row.team_leader || ''}</td>
             <td style="padding:8px; border-bottom:1px solid #f1ede6;">${row.problem_name || ''}</td>
             <td style="padding:8px; border-bottom:1px solid #f1ede6;">
-                ${row.pdf_url ? `<a class="btn btn-secondary" href="${row.pdf_url}" target="_blank" rel="noopener">View PDF</a>` : '<span class="text-muted">N/A</span>'}
+                ${row.pdf_link ? `<a class="btn btn-secondary" href="${row.pdf_link}" target="_blank" rel="noopener">View PDF</a>` : '<span class="text-muted">N/A</span>'}
             </td>
             <td style="padding:8px; border-bottom:1px solid #f1ede6;">
-                ${row.video_url ? `<a class="btn btn-secondary" href="${row.video_url}" target="_blank" rel="noopener">Watch Video</a>` : '<span class="text-muted">N/A</span>'}
+                ${row.video_link ? `<a class="btn btn-secondary" href="${row.video_link}" target="_blank" rel="noopener">Watch Video</a>` : '<span class="text-muted">N/A</span>'}
             </td>
         </tr>
     `).join('');
