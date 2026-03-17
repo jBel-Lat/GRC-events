@@ -6,7 +6,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
 });
 
-const ADMIN_BASE = '/admin';
+function detectAdminBasePath() {
+    const path = window.location.pathname || '';
+    const match = path.match(/^\/[^/]+/);
+    return match ? match[0] : '/admin';
+}
+
+const ADMIN_BASE = detectAdminBasePath();
 
 function enforceMobileSidebarLayout() {
     const isMobileLike = window.matchMedia('(max-width: 1024px), (hover: none) and (pointer: coarse)').matches;
@@ -29,20 +35,24 @@ function enforceMobileSidebarLayout() {
 
 function checkAdminAuth() {
     const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+    const isAdmin = (user?.role || '').toLowerCase() === 'admin';
     const path = window.location.pathname;
     const isLoginPage =
-        path === '/admin/' ||
-        path === '/admin' ||
-        path.endsWith('/admin/index.html') ||
+        path === `${ADMIN_BASE}/` ||
+        path === `${ADMIN_BASE}` ||
+        path.endsWith(`${ADMIN_BASE}/index.html`) ||
         path.endsWith('/index.html');
 
-    if (!token && !isLoginPage) {
-        window.location.href = '/admin/';
+    if ((!token || !isAdmin) && !isLoginPage) {
+        window.location.href = `${ADMIN_BASE}/`;
         return false;
     }
 
     if (token && isLoginPage) {
-        window.location.href = '/admin/dashboard.html';
+        if (isAdmin) {
+            window.location.href = `${ADMIN_BASE}/dashboard.html`;
+        }
         return false;
     }
 
@@ -168,7 +178,14 @@ async function handleLogin(e) {
         const result = await adminApi.login(username, password);
 
         if (result.success) {
-            window.location.href = '/admin/dashboard.html';
+            const role = (result?.user?.role || '').toLowerCase();
+            if (role !== 'admin') {
+                errorMessage.textContent = 'Forbidden: admin access required';
+                errorMessage.style.display = 'block';
+                await adminApi.logout();
+                return;
+            }
+            window.location.href = `${ADMIN_BASE}/dashboard.html`;
         } else {
             errorMessage.textContent = result.message || 'Login failed';
             errorMessage.style.display = 'block';
@@ -182,7 +199,8 @@ async function handleLogin(e) {
 
 async function handleLogout() {
     await adminApi.logout();
-    window.location.href = '/admin/';
+    document.cookie = 'admin_token=; Max-Age=0; path=/';
+    window.location.href = `${ADMIN_BASE}/`;
 }
 
 function switchSection(section) {

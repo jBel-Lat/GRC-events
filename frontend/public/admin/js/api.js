@@ -4,18 +4,25 @@ const API_BASE_URL = (window.location.hostname === 'localhost' && window.locatio
     ? 'http://localhost:5000/api'
     : '/api';
 
+function detectAdminBasePath() {
+    const path = window.location.pathname || '';
+    const match = path.match(/^\/[^/]+/);
+    return match ? match[0] : '/admin';
+}
+
 class AdminApi {
     constructor() {
         this.token = localStorage.getItem('adminToken') || localStorage.getItem('token');
         this.authRedirectInProgress = false;
+        this.adminBase = detectAdminBasePath();
     }
 
     isOnAdminLoginPage() {
         const path = window.location.pathname || '';
         return (
-            path === '/admin/' ||
-            path === '/admin' ||
-            path.endsWith('/admin/index.html') ||
+            path === `${this.adminBase}/` ||
+            path === `${this.adminBase}` ||
+            path.endsWith(`${this.adminBase}/index.html`) ||
             path.endsWith('/index.html')
         );
     }
@@ -27,7 +34,7 @@ class AdminApi {
 
         if (!this.isOnAdminLoginPage()) {
             const reason = encodeURIComponent(message || 'Session expired. Please log in again.');
-            window.location.href = `/admin/?reason=${reason}`;
+            window.location.href = `${this.adminBase}/?reason=${reason}`;
         }
     }
 

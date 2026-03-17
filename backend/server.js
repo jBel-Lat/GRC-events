@@ -11,16 +11,29 @@ const panelistRoutes = require('./routes/panelistRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const submissionRoutes = require('./routes/submissionRoutes');
 const matchRoutes = require('./routes/matchRoutes');
+const { adminPageAuthMiddleware } = require('./middleware/auth');
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+const ADMIN_ROUTE = (process.env.ADMIN_ROUTE || '/secure-admin-portal-8392').startsWith('/')
+    ? (process.env.ADMIN_ROUTE || '/secure-admin-portal-8392')
+    : `/${process.env.ADMIN_ROUTE || 'secure-admin-portal-8392'}`;
+
+// Block legacy direct admin page access so panel URL is controlled by ADMIN_ROUTE.
+app.use((req, res, next) => {
+    const pathName = String(req.path || '').toLowerCase();
+    if (pathName === '/admin' || pathName === '/admin/' || pathName === '/admin/index.html' || pathName === '/admin/dashboard.html') {
+        return res.status(404).json({ success: false, message: 'Route not found' });
+    }
+    return next();
+});
+
 app.use(express.static(path.join(__dirname, '../frontend/public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-const ADMIN_BASE = '/admin';
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -40,15 +53,15 @@ app.get('/favicon.ico', (req, res) => {
     res.status(204).end();
 });
 
-// Admin login/dashboard paths
-app.get(ADMIN_BASE, (req, res) => {
+// Admin login/dashboard paths (hidden route from env)
+app.get(ADMIN_ROUTE, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/index.html'));
 });
-app.get(`${ADMIN_BASE}/dashboard.html`, (req, res) => {
+app.get(`${ADMIN_ROUTE}/`, (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/public/admin/index.html'));
+});
+app.get(`${ADMIN_ROUTE}/dashboard.html`, adminPageAuthMiddleware, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/dashboard.html'));
-});
-app.get(`${ADMIN_BASE}/`, (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/public/admin/index.html'));
 });
 app.get('/tournament', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/tournament.html'));
@@ -81,7 +94,7 @@ async function startServer() {
 
         app.listen(PORT, () => {
             console.log(`Server running on http://localhost:${PORT}`);
-            console.log(`Admin login: http://localhost:${PORT}${ADMIN_BASE}`);
+            console.log(`Admin login: http://localhost:${PORT}${ADMIN_ROUTE}`);
             console.log(`Panelist login: http://localhost:${PORT}/panelist`);
         });
     } catch (err) {

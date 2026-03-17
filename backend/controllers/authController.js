@@ -22,7 +22,47 @@ async function ensureCreatorAdmin(connection) {
     return result.insertId;
 }
 
+async function resolveAdminRole(connection, admin) {
+    let role = 'admin';
+
+    try {
+        // Prefer role column from admin table if it exists.
+        const [adminRoleRows] = await connection.query(
+            'SELECT role FROM admin WHERE id = ? LIMIT 1',
+            [admin.id]
+        );
+        if (adminRoleRows.length && adminRoleRows[0].role) {
+            role = String(adminRoleRows[0].role).trim().toLowerCase();
+            return role || 'admin';
+        }
+    } catch (err) {
+        // ignore missing column and try users fallback
+        if (!(err && err.message && err.message.includes('Unknown column'))) {
+            throw err;
+        }
+    }
+
+    try {
+        // Optional compatibility fallback if role is stored in users table.
+        const [userRoleRows] = await connection.query(
+            'SELECT role FROM users WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) LIMIT 1',
+            [admin.username]
+        );
+        if (userRoleRows.length && userRoleRows[0].role) {
+            role = String(userRoleRows[0].role).trim().toLowerCase();
+        }
+    } catch (err) {
+        // Ignore if users table does not exist.
+        if (!(err && (err.code === 'ER_NO_SUCH_TABLE' || (err.message && err.message.includes("doesn't exist"))))) {
+            throw err;
+        }
+    }
+
+    return role || 'admin';
+}
+
 exports.adminLogin = async (req, res) => {
+    let connection;
     try {
         const username = (req.body?.username || '').trim();
         const password = req.body?.password || '';
@@ -34,7 +74,7 @@ exports.adminLogin = async (req, res) => {
             });
         }
 
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         const [rows] = await connection.query(
             'SELECT * FROM admin WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) LIMIT 1',
             [username]
@@ -42,7 +82,6 @@ exports.adminLogin = async (req, res) => {
 
         const admin = rows[0];
         if (!admin) {
-            connection.release();
             return res.status(401).json({
                 success: false,
                 message: ERROR_MESSAGES.INVALID_CREDENTIALS
@@ -59,10 +98,9 @@ exports.adminLogin = async (req, res) => {
         } else if (password === admin.password) {
             // plaintext stored; accept once and upgrade to bcrypt hash (best-effort, non-blocking)
             passwordMatch = true;
-            connection.release(); // release early before upgrade to avoid holding locks
             try {
                 const newHash = await bcrypt.hash(inputPassword, 10);
-                await pool.query('UPDATE admin SET password = ? WHERE id = ?', [newHash, admin.id]); // separate connection
+                await connection.query('UPDATE admin SET password = ? WHERE id = ?', [newHash, admin.id]);
                 admin.password = newHash;
             } catch (err) {
                 console.error('Admin password upgrade failed (ignored):', err.code || err.message);
@@ -73,16 +111,13 @@ exports.adminLogin = async (req, res) => {
         ) {
             // Legacy tolerance for plaintext passwords with accidental casing/whitespace variations.
             passwordMatch = true;
-            connection.release();
             try {
                 const newHash = await bcrypt.hash(inputPassword.trim(), 10);
-                await pool.query('UPDATE admin SET password = ? WHERE id = ?', [newHash, admin.id]);
+                await connection.query('UPDATE admin SET password = ? WHERE id = ?', [newHash, admin.id]);
                 admin.password = newHash;
             } catch (err) {
                 console.error('Admin password upgrade failed (ignored):', err.code || err.message);
             }
-        } else {
-            connection.release();
         }
 
         if (!passwordMatch) {
@@ -92,20 +127,33 @@ exports.adminLogin = async (req, res) => {
             });
         }
 
-        // if still held, release connection
-        if (connection && connection.connection && !connection.connection._closing) {
-            try { connection.release(); } catch (e) {}
+        const role = await resolveAdminRole(connection, admin);
+
+        if (role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Forbidden: account does not have admin role'
+            });
         }
 
         const token = jwt.sign(
             {
                 id: admin.id,
                 username: admin.username,
-                role: 'admin'
+                role
             },
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
+
+        const isSecure = process.env.NODE_ENV === 'production';
+        res.cookie('admin_token', token, {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: isSecure,
+            maxAge: 24 * 60 * 60 * 1000,
+            path: '/'
+        });
 
         res.json({
             success: true,
@@ -114,7 +162,8 @@ exports.adminLogin = async (req, res) => {
             user: {
                 id: admin.id,
                 username: admin.username,
-                full_name: admin.full_name
+                full_name: admin.full_name,
+                role
             }
         });
     } catch (error) {
@@ -123,6 +172,8 @@ exports.adminLogin = async (req, res) => {
             success: false,
             message: 'Server error'
         });
+    } finally {
+        if (connection) connection.release();
     }
 };
 
