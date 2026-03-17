@@ -100,6 +100,7 @@ async function selectEvent(eventId) {
     if (result.success) {
         const event = result.data.event;
         document.getElementById('eventTitle').textContent = event.event_name;
+        applyEventTypeUI(event);
 
         // populate event weight controls
         const sInput = document.getElementById('eventStudentWeightInput');
@@ -120,6 +121,23 @@ async function selectEvent(eventId) {
         switchEventDetailsTab('eventParticipantsTab');
         
         switchSection('eventDetails');
+    }
+}
+
+function applyEventTypeUI(event) {
+    const participantsTabBtn = document.getElementById('eventParticipantsTabBtn');
+    const participantsTitle = document.getElementById('participantsSectionTitle');
+    const criteriaSection = document.getElementById('criteriaDetailsSection');
+    const isTournamentEvent = Number(event?.is_tournament) === 1 || event?.is_tournament === true;
+
+    if (participantsTabBtn) {
+        participantsTabBtn.textContent = isTournamentEvent ? 'Tournament' : 'Participants';
+    }
+    if (participantsTitle) {
+        participantsTitle.textContent = isTournamentEvent ? 'Tournament Participants' : 'Participants';
+    }
+    if (criteriaSection) {
+        criteriaSection.style.display = isTournamentEvent ? 'none' : '';
     }
 }
 
@@ -1108,7 +1126,7 @@ async function handleAddEvent(e) {
         start_date: startDate || null,
         end_date: endDate || null,
         is_tournament: isTournament,
-        criteria: criteria.length > 0 ? criteria : [{ criteria_name: 'Tournament', percentage: 100, max_score: 100 }]
+        criteria: isTournament ? criteria : (criteria.length > 0 ? criteria : [{ criteria_name: 'Tournament', percentage: 100, max_score: 100 }])
     });
 
     if (result.success) {

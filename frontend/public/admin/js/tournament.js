@@ -37,6 +37,7 @@ function setupEventListeners() {
     
     // Generate bracket button
     document.getElementById('generateBracketBtn')?.addEventListener('click', generateBracket);
+    document.getElementById('bracketTypeSelect')?.addEventListener('change', updateBracketButtonLabel);
     
     // Modal close buttons
     document.querySelectorAll('.modal .close-btn').forEach(btn => {
@@ -65,6 +66,15 @@ function setupEventListeners() {
         
         observer.observe(tournamentSection, { attributes: true, attributeFilter: ['class'] });
     }
+}
+
+function updateBracketButtonLabel() {
+    const btn = document.getElementById('generateBracketBtn');
+    const select = document.getElementById('bracketTypeSelect');
+    if (!btn || !select) return;
+    btn.textContent = select.value === 'mobile_legends'
+        ? 'Generate Mobile Legends Bracket'
+        : 'Generate Bracket';
 }
 
 // Load all tournament events
@@ -307,13 +317,8 @@ async function handleCreateTournament(e) {
                 description: description,
                 start_date: today,
                 end_date: endDateStr,
-                criteria: [
-                    {
-                        criteria_name: 'Tournament Performance',
-                        percentage: 100,
-                        max_score: 100
-                    }
-                ]
+                is_tournament: true,
+                criteria: []
             })
         });
         
@@ -393,17 +398,28 @@ async function generateBracket() {
     }
     
     try {
-        // Shuffle teams
-        const shuffledTeams = [...tournamentState.selectedTeams].sort(() => Math.random() - 0.5);
-        
+        const bracketType = document.getElementById('bracketTypeSelect')?.value || 'single_elimination';
+        let bracketTeams = [...tournamentState.selectedTeams];
+
+        if (bracketType === 'mobile_legends') {
+            // Keep stable ordering to mimic seeded Mobile Legends style brackets.
+            bracketTeams = [...tournamentState.selectedTeams];
+            showTournamentMessage('Mobile Legends bracket generated with seeded ordering.', 'success');
+        } else {
+            // Default single elimination uses shuffled seeding.
+            bracketTeams = [...tournamentState.selectedTeams].sort(() => Math.random() - 0.5);
+        }
+
         // Generate bracket
-        tournamentState.bracket = generateBracketStructure(shuffledTeams);
+        tournamentState.bracket = generateBracketStructure(bracketTeams);
         tournamentState.matchResults = {}; // Reset match results
         tournamentState.currentRound = 1;
         
         renderBracketWithSelection(tournamentState.bracket, 1);
         
-        showTournamentMessage('Bracket generated successfully! Click on teams to select winners.', 'success');
+        if (bracketType !== 'mobile_legends') {
+            showTournamentMessage('Bracket generated successfully! Click on teams to select winners.', 'success');
+        }
     } catch (error) {
         console.error('Error generating bracket:', error);
         showTournamentMessage('Error generating bracket', 'error');
@@ -595,4 +611,7 @@ function closeAllModals() {
 }
 
 // Initialize when page loads
-document.addEventListener('DOMContentLoaded', initTournament);
+document.addEventListener('DOMContentLoaded', () => {
+    initTournament();
+    updateBracketButtonLabel();
+});

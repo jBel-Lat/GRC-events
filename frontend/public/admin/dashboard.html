@@ -71,7 +71,7 @@
 
                 <div class="section" style="margin: 12px 0;">
                     <div id="eventDetailsTabs" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-                        <button type="button" class="btn btn-secondary event-details-tab active" data-tab-target="eventParticipantsTab">Participants</button>
+                        <button type="button" class="btn btn-secondary event-details-tab active" data-tab-target="eventParticipantsTab" id="eventParticipantsTabBtn">Participants</button>
                         <button type="button" class="btn btn-secondary event-details-tab" data-tab-target="eventGoogleSheetTab">Google Sheet Submissions</button>
                         <button type="button" class="btn btn-secondary event-details-tab" data-tab-target="eventExcelTab">Excel Import/Export</button>
                     </div>
@@ -100,9 +100,9 @@
 
                         <div class="event-details-container">
                             <!-- Participants Section -->
-                            <div class="details-section">
+                            <div class="details-section" id="participantsDetailsSection">
                                 <div class="section-header">
-                                    <h2>Participants</h2>
+                                    <h2 id="participantsSectionTitle">Participants</h2>
                                     <div class="header-actions">
                                         <input type="text" id="participantsSearchBox" name="participantsSearch" class="search-box" placeholder="Search participants...">
                                         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -138,7 +138,7 @@
                             </div>
 
                             <!-- Criteria Section -->
-                            <div class="details-section">
+                            <div class="details-section" id="criteriaDetailsSection">
                                 <div class="section-header">
                                     <h2>Grading Criteria</h2>
                                     <button id="addCriteriaBtn" class="btn btn-primary">+ Add Criteria</button>
@@ -236,7 +236,7 @@
                         <!-- Teams Management -->
                         <div id="teamsManagementArea" style="display: none; margin-bottom: 20px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                <h3>Teams in Tournament</h3>
+                                <h3>Participants in Selected Tournament</h3>
                                 <button id="addTeamToTournamentBtn" class="btn btn-secondary">+ Add Team</button>
                             </div>
                             <div id="tournamentTeamsList" class="teams-list"></div>
@@ -244,7 +244,14 @@
 
                         <!-- Bracket Generation -->
                         <div id="bracketGenerationArea" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
-                            <button id="generateBracketBtn" class="btn btn-primary" style="margin-bottom: 20px;">Generate Shuffled Bracket</button>
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom: 12px;">
+                                <label for="bracketTypeSelect" style="font-weight:600;">Bracket Type:</label>
+                                <select id="bracketTypeSelect" class="form-control" style="width: 260px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                                    <option value="single_elimination">Single Elimination (Default)</option>
+                                    <option value="mobile_legends">Mobile Legends Bracket</option>
+                                </select>
+                                <button id="generateBracketBtn" class="btn btn-primary">Generate Bracket</button>
+                            </div>
                             <div id="bracketContainer" class="bracket"></div>
                         </div>
                     </div>
