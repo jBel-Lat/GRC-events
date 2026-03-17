@@ -115,7 +115,9 @@ async function selectEvent(eventId) {
         // Load participants
         loadEventParticipants(eventId);
         loadSubmissionsTable(eventId);
-        loadTopBestCategory(eventId);
+        if (!currentEventIsTournament) {
+            loadTopBestCategory(eventId);
+        }
         
         // Load criteria
         loadEventCriteria(result.data.criteria);
@@ -129,6 +131,7 @@ function applyEventTypeUI(event) {
     const participantsTabBtn = document.getElementById('eventParticipantsTabBtn');
     const participantsTitle = document.getElementById('participantsSectionTitle');
     const criteriaSection = document.getElementById('criteriaDetailsSection');
+    const topBestCategoryBox = document.getElementById('topBestCategoryBox');
     const isTournamentEvent = Number(event?.is_tournament) === 1 || event?.is_tournament === true;
     currentEventIsTournament = isTournamentEvent;
 
@@ -144,6 +147,9 @@ function applyEventTypeUI(event) {
     }
     if (criteriaSection) {
         criteriaSection.style.display = isTournamentEvent ? 'none' : '';
+    }
+    if (topBestCategoryBox) {
+        topBestCategoryBox.style.display = isTournamentEvent ? 'none' : '';
     }
     if (participantProblemSelect) {
         if (isTournamentEvent) {

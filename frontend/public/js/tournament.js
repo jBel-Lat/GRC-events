@@ -129,8 +129,8 @@ function renderMatchCard(match) {
         <article class="match-card ${status === 'ongoing' ? 'ongoing' : ''}">
             <div class="match-header">
                 <div>
-                    <div style="font-size:0.86rem; color:#64748b; margin-bottom:4px;">Match #${Number(match.match_order || 0)}</div>
-                    <div class="match-teams">${escapeHtml(match.teamA)} vs ${escapeHtml(match.teamB)}</div>
+                    <div class="match-id">Match #${Number(match.match_order || 0)}</div>
+                    <div class="match-teams">${escapeHtml(match.teamA)} <span>vs</span> ${escapeHtml(match.teamB)}</div>
                 </div>
                 <div class="badge-row">
                     <span class="badge ${escapeHtml(status)}">${escapeHtml(status)}</span>
@@ -214,8 +214,15 @@ function setStatus(message, type = 'info') {
 
     el.textContent = message;
     el.style.display = 'block';
-    el.style.background = type === 'error' ? '#fee2e2' : '#dcfce7';
-    el.style.color = type === 'error' ? '#b91c1c' : '#166534';
+    if (type === 'error') {
+        el.style.background = 'rgba(127, 29, 29, 0.28)';
+        el.style.color = '#fecaca';
+        el.style.borderLeftColor = '#ef4444';
+    } else {
+        el.style.background = 'rgba(6, 95, 70, 0.28)';
+        el.style.color = '#bbf7d0';
+        el.style.borderLeftColor = '#10b981';
+    }
 }
 
 function escapeHtml(value) {

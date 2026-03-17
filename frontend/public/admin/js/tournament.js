@@ -170,15 +170,15 @@ function renderTournamentTeamsList(teams) {
     if (!container) return;
 
     if (!teams.length) {
-        container.innerHTML = '<p style="color:#999;">No teams selected yet.</p>';
+        container.innerHTML = '<p class="tourney-empty-note">No teams selected yet.</p>';
         return;
     }
 
     container.innerHTML = teams.map((team) => `
-        <div class="tournament-team-card" style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:#f5f5f5; border-radius:8px; margin-bottom:8px; gap:10px;">
-            <div>
-                <div style="font-weight:700;">${escapeHtml(team.team_name)}</div>
-                <div style="font-size:0.85em; color:#666;">${escapeHtml(team.registration_number || 'Team')}</div>
+        <div class="tournament-team-card tournament-team-chip">
+            <div class="tournament-team-copy">
+                <div class="tournament-team-name">${escapeHtml(team.team_name)}</div>
+                <div class="tournament-team-meta">${escapeHtml(team.registration_number || 'Team')}</div>
             </div>
             <button class="btn btn-danger btn-small" onclick="removeTeamFromTournament(${Number(team.id)})">Remove</button>
         </div>
@@ -332,7 +332,7 @@ function renderMatches(matches) {
     if (!container) return;
 
     if (!matches.length) {
-        container.innerHTML = '<p style="color:#777; margin:0;">No matches yet. Generate a bracket to create match cards.</p>';
+        container.innerHTML = '<p class="tourney-empty-note">No matches yet. Generate a bracket to create match cards.</p>';
         return;
     }
 
@@ -350,9 +350,12 @@ function renderMatches(matches) {
 
         const cards = roundMatches.map((match) => renderMatchCard(match)).join('');
         return `
-            <section class="admin-round-block" style="margin-bottom:16px;">
-                <h4 style="margin:0 0 10px 0; color:#1f2a44;">${escapeHtml(roundName)}</h4>
-                <div style="display:grid; gap:12px;">${cards}</div>
+            <section class="admin-round-block">
+                <div class="admin-round-header">
+                    <h4>${escapeHtml(roundName)}</h4>
+                    <span>${roundMatches.length} match${roundMatches.length === 1 ? '' : 'es'}</span>
+                </div>
+                <div class="admin-round-grid">${cards}</div>
             </section>
         `;
     }).join('');
@@ -375,20 +378,20 @@ function renderMatchCard(match) {
         : (winnerSide === 'teamB' ? `${match.teamB} (Team B)` : 'Not selected');
 
     return `
-        <article class="admin-match-card" style="border:1px solid #e2e8f0; border-radius:10px; padding:12px; background:#fff;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+        <article class="admin-match-card ${status === 'ongoing' ? 'is-ongoing' : ''}">
+            <div class="admin-match-head">
                 <div>
-                    <div style="font-size:0.9em; color:#64748b; margin-bottom:4px;">Match #${Number(match.match_order || 0)}</div>
-                    <div style="font-size:1rem; font-weight:700;">${escapeHtml(match.teamA)} <span style="color:#64748b;">vs</span> ${escapeHtml(match.teamB)}</div>
+                    <div class="admin-match-id">Match #${Number(match.match_order || 0)}</div>
+                    <div class="admin-match-title">${escapeHtml(match.teamA)} <span>vs</span> ${escapeHtml(match.teamB)}</div>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <span style="padding:3px 8px; border-radius:999px; font-size:0.75rem; font-weight:700; color:#fff; background:${statusColor}; text-transform:uppercase;">${escapeHtml(status)}</span>
-                    ${showLiveBadge ? '<span style="padding:3px 8px; border-radius:999px; font-size:0.75rem; font-weight:700; color:#fff; background:#dc2626;">LIVE</span>' : ''}
+                <div class="admin-match-badges">
+                    <span class="admin-status-pill" style="background:${statusColor};">${escapeHtml(status)}</span>
+                    ${showLiveBadge ? '<span class="admin-live-pill">LIVE</span>' : ''}
                 </div>
             </div>
-            <div style="margin-top:8px; font-size:0.9em; color:#334155;"><strong>Winner:</strong> ${escapeHtml(winnerLabel)}</div>
+            <div class="admin-match-winner"><strong>Winner:</strong> ${escapeHtml(winnerLabel)}</div>
 
-            <div style="display:grid; grid-template-columns: minmax(180px, 1fr) auto auto auto; gap:8px; margin-top:10px; align-items:center;" class="admin-match-controls">
+            <div class="admin-match-controls">
                 <input type="text" id="matchLiveUrl-${matchId}" value="${escapeAttr(match.facebook_live_url || '')}" placeholder="Paste Facebook Live URL" class="search-box" style="width:100%;">
                 <button class="btn btn-secondary" onclick="saveMatchLiveUrl(${matchId})">Save Link</button>
                 <button class="btn btn-secondary" onclick="removeMatchLiveUrl(${matchId})">Remove Link</button>
@@ -399,11 +402,11 @@ function renderMatchCard(match) {
                 </select>
             </div>
 
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <div class="admin-match-actions">
                 <button class="btn btn-primary" onclick="updateMatchStatus(${matchId})">Update Status</button>
                 <button class="btn btn-secondary" onclick="toggleMatchVideo(${matchId})">${isExpanded ? 'Switch Video' : 'Watch Video'}</button>
             </div>
-            <div style="display:grid; grid-template-columns: minmax(170px,1fr) minmax(170px,1fr) auto auto; gap:8px; margin-top:8px; align-items:center;" class="admin-match-controls">
+            <div class="admin-match-controls admin-match-opponents">
                 <input type="text" id="matchTeamA-${matchId}" value="${escapeAttr(match.teamA || '')}" class="search-box" placeholder="Team A name">
                 <input type="text" id="matchTeamB-${matchId}" value="${escapeAttr(match.teamB || '')}" class="search-box" placeholder="Team B name">
                 <button class="btn btn-secondary" onclick="saveMatchOpponents(${matchId})">Update Opponents</button>
@@ -413,12 +416,12 @@ function renderMatchCard(match) {
                     <option value="teamB" ${winnerSide === 'teamB' ? 'selected' : ''}>Winner: Team B</option>
                 </select>
             </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <div class="admin-match-actions">
                 <button class="btn btn-primary" onclick="saveMatchWinner(${matchId})">Update Winner</button>
                 <button class="btn btn-secondary" onclick="revertMatchWinner(${matchId})">Revert Winner</button>
             </div>
 
-            <div class="match-video-panel ${isExpanded ? 'expanded' : ''}" style="margin-top:10px; overflow:hidden; transition:max-height .25s ease, opacity .25s ease; max-height:${isExpanded ? '700px' : '0'}; opacity:${isExpanded ? '1' : '0'};">
+            <div class="match-video-panel ${isExpanded ? 'expanded' : ''}" style="max-height:${isExpanded ? '700px' : '0'}; opacity:${isExpanded ? '1' : '0'};">
                 ${isExpanded ? renderMatchVideoPanel(match) : ''}
             </div>
         </article>
@@ -438,8 +441,8 @@ function renderMatchVideoPanel(match) {
 
     const embedUrl = toFacebookEmbedUrl(rawUrl);
     return `
-        <div style="padding:10px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc;">
-            <div style="position:relative; padding-top:56.25%; border-radius:8px; overflow:hidden; background:#000;">
+        <div class="admin-video-wrap">
+            <div class="admin-video-frame">
                 <iframe
                     src="${escapeAttr(embedUrl)}"
                     style="position:absolute; inset:0; width:100%; height:100%; border:0;"
@@ -449,7 +452,7 @@ function renderMatchVideoPanel(match) {
                     title="Match ${Number(match.id)} live video"
                 ></iframe>
             </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <div class="admin-video-actions">
                 <a class="btn btn-secondary" href="${escapeAttr(rawUrl)}" target="_blank" rel="noopener">Watch on Facebook</a>
                 <button class="btn btn-secondary" onclick="minimizeMatchVideo()">Minimize Video</button>
             </div>
@@ -583,9 +586,7 @@ function showTournamentMessage(message, type = 'info') {
 
     messageDiv.textContent = message;
     messageDiv.style.display = 'block';
-    messageDiv.style.backgroundColor = type === 'error' ? '#fee2e2' : type === 'success' ? '#dcfce7' : '#eff6ff';
-    messageDiv.style.color = type === 'error' ? '#b91c1c' : type === 'success' ? '#166534' : '#1d4ed8';
-    messageDiv.style.borderLeft = `4px solid ${type === 'error' ? '#b91c1c' : type === 'success' ? '#166534' : '#1d4ed8'}`;
+    messageDiv.className = `tourney-message ${type}`;
 
     setTimeout(() => {
         messageDiv.style.display = 'none';

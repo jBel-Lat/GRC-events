@@ -63,7 +63,7 @@ app.get(`${ADMIN_ROUTE}/`, (req, res) => {
 app.get(`${ADMIN_ROUTE}/dashboard.html`, adminPageAuthMiddleware, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/dashboard.html'));
 });
-app.get('/tournament', (req, res) => {
+app.get(['/tournament', '/tournament/', '/tournament/index.html'], (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/tournament.html'));
 });
 
