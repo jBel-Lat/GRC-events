@@ -66,7 +66,7 @@ async function loadEvents() {
                         <h3>${event.event_name}</h3>
                         <div style="display: flex; gap: 8px; align-items: center;">
                             ${event.is_tournament ? '<span style="background: #667eea; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 500;">🏆 Tournament</span>' : ''}
-                            <span class="event-status status-${event.status}">${event.status}</span>
+                            <span class="event-status status-${deriveEventStatus(event).className}">${deriveEventStatus(event).label}</span>
                         </div>
                     </div>
                     <div class="event-card-info">
@@ -980,6 +980,12 @@ function updateCriteriaRequirement() {
         // Show asterisk (required)
         criteriaRequired.style.display = 'inline';
     }
+
+    // Make criteria fields truly optional for tournament events.
+    document.querySelectorAll('#criteriaFieldsContainer .criteria-name, #criteriaFieldsContainer .criteria-percentage')
+        .forEach((input) => {
+            input.required = !isTournament;
+        });
 }
 
 function addCriteriaField() {
@@ -1004,6 +1010,7 @@ function addCriteriaField() {
     }
 
     updateCriteriaTotalIndicator();
+    updateCriteriaRequirement();
 }
 
 function removeCriteriaField(buttonEl) {
@@ -1067,9 +1074,8 @@ function bindStartEndDateConstraint(startInputId, endInputId) {
     const endInput = document.getElementById(endInputId);
     if (!startInput || !endInput) return;
 
-    const sync = () => {
+    const enforceEndNotBeforeStart = () => {
         const startVal = startInput.value || '';
-        endInput.min = startVal;
         if (startVal && endInput.value) {
             const start = new Date(startVal);
             const end = new Date(endInput.value);
@@ -1079,8 +1085,17 @@ function bindStartEndDateConstraint(startInputId, endInputId) {
         }
     };
 
+    const sync = () => {
+        const startVal = startInput.value || '';
+        endInput.min = startVal;
+        enforceEndNotBeforeStart();
+    };
+
     startInput.addEventListener('change', sync);
     startInput.addEventListener('input', sync);
+    endInput.addEventListener('change', enforceEndNotBeforeStart);
+    endInput.addEventListener('input', enforceEndNotBeforeStart);
+    endInput.addEventListener('blur', enforceEndNotBeforeStart);
     sync();
 }
 
@@ -1635,6 +1650,32 @@ async function deleteTeamParticipants(teamName) {
 function formatDate(dateString) {
     if (!dateString) return null;
     return new Date(dateString).toLocaleString();
+}
+
+function deriveEventStatus(event) {
+    const now = new Date();
+    const startRaw = event?.start_date ? String(event.start_date) : '';
+    const endRaw = event?.end_date ? String(event.end_date) : '';
+
+    const parseStart = (raw) => {
+        if (!raw) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(`${raw}T00:00:00`);
+        return new Date(raw);
+    };
+    const parseEnd = (raw) => {
+        if (!raw) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(`${raw}T23:59:59.999`);
+        return new Date(raw);
+    };
+
+    const start = parseStart(startRaw);
+    const end = parseEnd(endRaw);
+    const hasValidStart = start && !Number.isNaN(start.getTime());
+    const hasValidEnd = end && !Number.isNaN(end.getTime());
+
+    if (hasValidEnd && now > end) return { className: 'completed', label: 'Ended' };
+    if (hasValidStart && now < start) return { className: 'upcoming', label: 'Upcoming' };
+    return { className: 'ongoing', label: 'Ongoing' };
 }
 
 function openEditEventModal(eventId, eventName, description, startDate, endDate) {

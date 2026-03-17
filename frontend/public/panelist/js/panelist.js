@@ -202,7 +202,7 @@ async function loadAssignedEvents() {
                      ${Number(event.can_access) ? `onclick='selectEvent(${event.id}, ${JSON.stringify(event.event_name)})'` : ''}>
                     <div class="event-card-header">
                         <h3>${event.event_name}</h3>
-                        <span class="event-status status-${event.status}">${event.status}</span>
+                        <span class="event-status status-${deriveEventStatus(event).className}">${deriveEventStatus(event).label}</span>
                     </div>
                     <div class="event-card-info">
                         <div>
@@ -434,4 +434,30 @@ window.addEventListener('orientationchange', enforceMobileSidebarLayout);
 function formatDate(dateString) {
     if (!dateString) return null;
     return new Date(dateString).toLocaleString();
+}
+
+function deriveEventStatus(event) {
+    const now = new Date();
+    const startRaw = event?.start_date ? String(event.start_date) : '';
+    const endRaw = event?.end_date ? String(event.end_date) : '';
+
+    const parseStart = (raw) => {
+        if (!raw) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(`${raw}T00:00:00`);
+        return new Date(raw);
+    };
+    const parseEnd = (raw) => {
+        if (!raw) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(`${raw}T23:59:59.999`);
+        return new Date(raw);
+    };
+
+    const start = parseStart(startRaw);
+    const end = parseEnd(endRaw);
+    const hasValidStart = start && !Number.isNaN(start.getTime());
+    const hasValidEnd = end && !Number.isNaN(end.getTime());
+
+    if (hasValidEnd && now > end) return { className: 'completed', label: 'Ended' };
+    if (hasValidStart && now < start) return { className: 'upcoming', label: 'Upcoming' };
+    return { className: 'ongoing', label: 'Ongoing' };
 }
