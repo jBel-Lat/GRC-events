@@ -198,15 +198,15 @@ function renderVideoPanel(match) {
     if (!liveUrl) {
         return `
             <div class="video-inner">
-                <p style="margin:0 0 8px 0; color:#475569;">Live stream not available for this battle yet.</p>
+                <p style="margin:0 0 8px 0; color:#475569;">Discord stream link not available for this battle yet.</p>
                 <button class="btn btn-secondary" onclick="minimizeVideo()">Minimize Video</button>
             </div>
         `;
     }
 
-    const embedUrl = toFacebookEmbedUrl(liveUrl);
-    return `
-        <div class="video-inner">
+    const embedUrl = toDiscordEmbedUrl(liveUrl);
+    const embedContent = embedUrl
+        ? `
             <div class="video-embed">
                 <iframe
                     src="${escapeAttr(embedUrl)}"
@@ -216,8 +216,14 @@ function renderVideoPanel(match) {
                     title="Live match ${Number(match.id)}"
                 ></iframe>
             </div>
+        `
+        : '<p style="margin:0 0 8px 0; color:#475569;">This Discord link cannot be embedded. Open it directly in Discord.</p>';
+
+    return `
+        <div class="video-inner">
+            ${embedContent}
             <div class="video-actions">
-                <a class="btn btn-secondary" href="${escapeAttr(liveUrl)}" target="_blank" rel="noopener">Watch on Facebook</a>
+                <a class="btn btn-secondary" href="${escapeAttr(liveUrl)}" target="_blank" rel="noopener">Open in Discord</a>
                 <button class="btn btn-secondary" onclick="minimizeVideo()">Minimize Video</button>
             </div>
         </div>
@@ -241,11 +247,17 @@ function minimizeVideo() {
     renderMatches();
 }
 
-function toFacebookEmbedUrl(url) {
+function toDiscordEmbedUrl(url) {
     const cleaned = String(url || '').trim();
-    if (!cleaned) return '';
-    if (cleaned.includes('facebook.com/plugins/video.php')) return cleaned;
-    return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(cleaned)}&show_text=false&width=1280`;
+    if (!cleaned) return null;
+    if (cleaned.includes('discord.com/widget')) return cleaned;
+
+    const guildMatch = cleaned.match(/discord(?:app)?\.com\/channels\/(\d+)/i);
+    if (guildMatch && guildMatch[1]) {
+        return `https://discord.com/widget?id=${guildMatch[1]}&theme=dark`;
+    }
+
+    return null;
 }
 
 function setStatus(message, type = 'info') {

@@ -294,6 +294,12 @@ async function generateBracket() {
         return;
     }
 
+    const confirmToken = window.prompt('Type CONFIRM to generate a new bracket. This will reset current bracket matches for this event.');
+    if (!confirmToken || String(confirmToken).trim().toUpperCase() !== 'CONFIRM') {
+        showTournamentMessage('Bracket generation cancelled.', 'info');
+        return;
+    }
+
     const bracketType = document.getElementById('bracketTypeSelect')?.value || 'single_elimination';
     const payload = {
         event_id: tournamentState.selectedEventId,
@@ -463,7 +469,7 @@ function renderMatchCard(match) {
             <div class="admin-match-winner"><strong>Winner:</strong> ${escapeHtml(winnerLabel)}</div>
 
             <div class="admin-match-controls">
-                <input type="text" id="matchLiveUrl-${matchId}" value="${escapeAttr(match.facebook_live_url || '')}" placeholder="Paste Facebook Live URL" class="search-box" style="width:100%;">
+                <input type="text" id="matchLiveUrl-${matchId}" value="${escapeAttr(match.facebook_live_url || '')}" placeholder="Paste Discord stream URL" class="search-box" style="width:100%;">
                 <button class="btn btn-secondary" onclick="saveMatchLiveUrl(${matchId})">Save Link</button>
                 <button class="btn btn-secondary" onclick="removeMatchLiveUrl(${matchId})">Remove Link</button>
                 <select id="matchStatus-${matchId}" class="search-box" style="padding:8px 10px;">
@@ -504,15 +510,15 @@ function renderMatchVideoPanel(match) {
     if (!rawUrl) {
         return `
             <div style="padding:10px; border:1px dashed #cbd5e1; border-radius:8px; background:#f8fafc;">
-                <p style="margin:0 0 8px 0; color:#475569;">Live stream not available for this battle yet.</p>
+                <p style="margin:0 0 8px 0; color:#475569;">Discord stream link not available for this battle yet.</p>
                 <button class="btn btn-secondary" onclick="minimizeMatchVideo()">Minimize Video</button>
             </div>
         `;
     }
 
-    const embedUrl = toFacebookEmbedUrl(rawUrl);
-    return `
-        <div class="admin-video-wrap">
+    const embedUrl = toDiscordEmbedUrl(rawUrl);
+    const embedBlock = embedUrl
+        ? `
             <div class="admin-video-frame">
                 <iframe
                     src="${escapeAttr(embedUrl)}"
@@ -520,22 +526,37 @@ function renderMatchVideoPanel(match) {
                     allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                     allowfullscreen
                     loading="lazy"
-                    title="Match ${Number(match.id)} live video"
+                    title="Match ${Number(match.id)} Discord stream"
                 ></iframe>
             </div>
+        `
+        : '<p style="margin:0 0 8px 0; color:#475569;">This Discord link cannot be embedded. Open it directly in Discord.</p>';
+
+    return `
+        <div class="admin-video-wrap">
+            ${embedBlock}
             <div class="admin-video-actions">
-                <a class="btn btn-secondary" href="${escapeAttr(rawUrl)}" target="_blank" rel="noopener">Watch on Facebook</a>
+                <a class="btn btn-secondary" href="${escapeAttr(rawUrl)}" target="_blank" rel="noopener">Open in Discord</a>
                 <button class="btn btn-secondary" onclick="minimizeMatchVideo()">Minimize Video</button>
             </div>
         </div>
     `;
 }
 
-function toFacebookEmbedUrl(url) {
+function toDiscordEmbedUrl(url) {
     const trimmed = String(url || '').trim();
-    if (!trimmed) return '';
-    if (trimmed.includes('facebook.com/plugins/video.php')) return trimmed;
-    return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(trimmed)}&show_text=false&width=1280`;
+    if (!trimmed) return null;
+    if (trimmed.includes('discord.com/widget')) return trimmed;
+
+    const guildMatch = trimmed.match(/discord(?:app)?\.com\/channels\/(\d+)/i);
+    if (guildMatch && guildMatch[1]) {
+        return `https://discord.com/widget?id=${guildMatch[1]}&theme=dark`;
+    }
+
+    const inviteMatch = trimmed.match(/discord(?:app)?\.(?:gg|com\/invite)\/([a-zA-Z0-9-]+)/i);
+    if (inviteMatch) return null;
+
+    return null;
 }
 
 function toggleMatchVideo(matchId) {
