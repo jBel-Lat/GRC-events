@@ -6,7 +6,7 @@
 let tournamentState = {
     selectedEventId: null,
     selectedTeams: [],
-    allTeams: [],
+    eventTeams: [],
     currentRound: 1,
     matchResults: {}, // {matchId: winnerId}
     bracket: [] // stores bracket structure
@@ -58,7 +58,6 @@ function setupEventListeners() {
                     if (tournamentSection.classList.contains('active')) {
                         // Load data when tournament section becomes active
                         loadTournamentEvents();
-                        loadAllTeams();
                     }
                 }
             });
@@ -134,79 +133,24 @@ async function loadTournamentEvents() {
     }
 }
 
-// Load all teams from all events
-async function loadAllTeams() {
-    try {
-        const token = localStorage.getItem('adminToken');
-        if (!token) {
-            console.error('No authorization token found');
-            return;
-        }
-        
-        const response = await fetch('/api/events', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        const events = data.data || data;
-        
-        if (!Array.isArray(events)) {
-            throw new Error('Events data is not an array');
-        }
-        
-        tournamentState.allTeams = [];
-        
-        // Fetch participants for each event
-        for (const event of events) {
-            try {
-                const participantsRes = await fetch(`/api/participants/admin/event/${event.id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (!participantsRes.ok) {
-                    console.warn(`Could not load teams for event ${event.id}`);
-                    continue;
-                }
-                
-                const participantData = await participantsRes.json();
-                const participants = participantData.data || participantData;
-                if (Array.isArray(participants)) {
-                    tournamentState.allTeams.push(...participants);
-                }
-            } catch (error) {
-                console.error(`Error loading teams for event ${event.id}:`, error);
-            }
-        }
-    } catch (error) {
-        console.error('Error loading teams:', error);
-        showTournamentMessage('Error loading teams: ' + error.message, 'error');
-    }
-}
-
 // Handle tournament event selection
 function handleTournamentEventSelect(e) {
     const eventId = e.target.value;
     tournamentState.selectedEventId = eventId;
     
     if (eventId) {
+        tournamentState.eventTeams = [];
+        tournamentState.selectedTeams = [];
         loadTeamsForEvent(eventId);
         document.getElementById('teamsManagementArea').style.display = 'block';
         document.getElementById('bracketGenerationArea').style.display = 'none';
-        tournamentState.selectedTeams = [];
         tournamentState.currentRound = 1;
         tournamentState.matchResults = {};
         tournamentState.bracket = [];
     } else {
         document.getElementById('teamsManagementArea').style.display = 'none';
         document.getElementById('bracketGenerationArea').style.display = 'none';
+        tournamentState.eventTeams = [];
     }
 }
 
@@ -236,9 +180,10 @@ async function loadTeamsForEvent(eventId) {
             throw new Error('Participants data is not an array');
         }
         
-        // Store teams and display
-        tournamentState.selectedTeams = participants;
-        renderTournamentTeamsList(participants);
+        // Store only teams that belong to this tournament event.
+        tournamentState.eventTeams = participants;
+        tournamentState.selectedTeams = [...participants];
+        renderTournamentTeamsList(tournamentState.selectedTeams);
         
         // Show bracket area if teams exist
         if (participants.length > 0) {
@@ -344,12 +289,17 @@ function openAddTeamModal() {
         showTournamentMessage('Please select a tournament event first', 'error');
         return;
     }
+
+    if (!Array.isArray(tournamentState.eventTeams) || tournamentState.eventTeams.length === 0) {
+        showTournamentMessage('No teams available for this tournament event.', 'info');
+        return;
+    }
     
     const select = document.getElementById('availableTeamsSelect');
     select.innerHTML = '<option value="">-- Choose a team --</option>';
     
-    // Get teams not already in tournament
-    const availableTeams = tournamentState.allTeams.filter(
+    // Only show teams from the currently selected tournament event.
+    const availableTeams = tournamentState.eventTeams.filter(
         team => !tournamentState.selectedTeams.some(t => t.id === team.id)
     );
     
@@ -375,7 +325,7 @@ function handleAddTeamToTournament(e) {
     }
     
     // Add team to selected teams
-    const team = tournamentState.allTeams.find(t => t.id === teamId);
+    const team = tournamentState.eventTeams.find(t => t.id === teamId);
     if (!team) {
         showTournamentMessage('Team not found', 'error');
         return;
