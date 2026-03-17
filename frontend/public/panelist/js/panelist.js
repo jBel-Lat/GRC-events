@@ -197,7 +197,9 @@ async function loadAssignedEvents() {
             if (refreshBtn) refreshBtn.addEventListener('click', loadAssignedEvents);
         } else {
             eventsList.innerHTML = result.data.map(event => `
-                <div class="event-card" onclick="selectEvent(${event.id}, '${event.event_name}')">
+                <div class="event-card ${Number(event.can_access) ? '' : 'event-card-disabled'}"
+                     style="${Number(event.can_access) ? '' : 'opacity:0.6; cursor:not-allowed;'}"
+                     ${Number(event.can_access) ? `onclick='selectEvent(${event.id}, ${JSON.stringify(event.event_name)})'` : ''}>
                     <div class="event-card-header">
                         <h3>${event.event_name}</h3>
                         <span class="event-status status-${event.status}">${event.status}</span>
@@ -211,6 +213,7 @@ async function loadAssignedEvents() {
                         </div>
                     </div>
                     <p>${event.description || 'No description'}</p>
+                    ${Number(event.can_access) ? '' : `<p class="text-muted" style="margin-top:8px;"><strong>Disabled:</strong> ${event.access_message || 'Event unavailable'}</p>`}
                 </div>
             `).join('');
         }

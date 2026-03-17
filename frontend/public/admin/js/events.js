@@ -722,6 +722,8 @@ if (document.head) document.head.appendChild(style);
 // Event Modal Handlers
 document.addEventListener('DOMContentLoaded', () => {
     setupEventDetailsTabs();
+    bindStartEndDateConstraint('startDate', 'endDate');
+    bindStartEndDateConstraint('editStartDate', 'editEndDate');
 
     const addEventBtn = document.getElementById('addEventBtn');
     if (addEventBtn) {
@@ -1034,6 +1036,36 @@ function updateSingleCriteriaIndicator() {
     indicator.style.color = projected > 100 ? '#d32f2f' : '#2e7d32';
 }
 
+function validateEventDateRange(startDate, endDate) {
+    if (!startDate || !endDate) return true;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return true;
+    return end >= start;
+}
+
+function bindStartEndDateConstraint(startInputId, endInputId) {
+    const startInput = document.getElementById(startInputId);
+    const endInput = document.getElementById(endInputId);
+    if (!startInput || !endInput) return;
+
+    const sync = () => {
+        const startVal = startInput.value || '';
+        endInput.min = startVal;
+        if (startVal && endInput.value) {
+            const start = new Date(startVal);
+            const end = new Date(endInput.value);
+            if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end < start) {
+                endInput.value = startVal;
+            }
+        }
+    };
+
+    startInput.addEventListener('change', sync);
+    startInput.addEventListener('input', sync);
+    sync();
+}
+
 async function handleAddEvent(e) {
     e.preventDefault();
 
@@ -1042,6 +1074,11 @@ async function handleAddEvent(e) {
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
     const isTournament = document.getElementById('isTournamentEvent').checked;
+
+    if (!validateEventDateRange(startDate, endDate)) {
+        alert('End date cannot be earlier than start date.');
+        return;
+    }
 
     const criteria = [];
     document.querySelectorAll('#criteriaFieldsContainer .form-group').forEach(field => {
@@ -1588,6 +1625,13 @@ function openEditEventModal(eventId, eventName, description, startDate, endDate)
     document.getElementById('editEventDescription').value = description;
     document.getElementById('editStartDate').value = startDate;
     document.getElementById('editEndDate').value = endDate;
+    const editEndInput = document.getElementById('editEndDate');
+    if (editEndInput) {
+        editEndInput.min = startDate || '';
+        if (!validateEventDateRange(startDate, editEndInput.value)) {
+            editEndInput.value = startDate || '';
+        }
+    }
     showModal('editEventModal');
 }
 
@@ -1599,6 +1643,11 @@ async function handleEditEvent(e) {
     const description = document.getElementById('editEventDescription').value;
     const startDate = document.getElementById('editStartDate').value;
     const endDate = document.getElementById('editEndDate').value;
+
+    if (!validateEventDateRange(startDate, endDate)) {
+        alert('End date cannot be earlier than start date.');
+        return;
+    }
 
     const result = await adminApi.updateEvent(eventId, {
         event_name: eventName,

@@ -1,6 +1,14 @@
 const pool = require('../config/database');
 const { SUCCESS_MESSAGES, ERROR_MESSAGES } = require('../config/constants');
 
+function isEndBeforeStart(startDate, endDate) {
+    if (!startDate || !endDate) return false;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    return end < start;
+}
+
 async function getCriteriaWithDetailsCompat(connection, eventId) {
     const queries = [
         'SELECT id, criteria_name, criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
@@ -175,6 +183,13 @@ exports.createEvent = async (req, res) => {
             });
         }
 
+        if (isEndBeforeStart(start_date, end_date)) {
+            return res.status(400).json({
+                success: false,
+                message: 'End date cannot be earlier than start date.'
+            });
+        }
+
         // Criteria are required only if not a tournament event
         if (!is_tournament && (!criteria || criteria.length === 0)) {
             return res.status(400).json({
@@ -246,6 +261,13 @@ exports.updateEvent = async (req, res) => {
     try {
         const { id } = req.params;
         const { event_name, description, start_date, end_date, status, is_elimination, is_tournament } = req.body;
+
+        if (isEndBeforeStart(start_date, end_date)) {
+            return res.status(400).json({
+                success: false,
+                message: 'End date cannot be earlier than start date.'
+            });
+        }
 
         const connection = await pool.getConnection();
         

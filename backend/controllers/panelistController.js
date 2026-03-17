@@ -242,7 +242,17 @@ exports.getPanelistAssignedEvents = async (req, res) => {
 
         const connection = await pool.getConnection();
         const [events] = await connection.query(
-            `SELECT e.id, e.event_name, e.description, e.start_date, e.end_date, e.status
+            `SELECT e.id, e.event_name, e.description, e.start_date, e.end_date, e.status,
+                    CASE
+                        WHEN e.end_date IS NOT NULL AND NOW() > e.end_date THEN 0
+                        WHEN e.start_date IS NOT NULL AND NOW() < e.start_date THEN 0
+                        ELSE 1
+                    END AS can_access,
+                    CASE
+                        WHEN e.end_date IS NOT NULL AND NOW() > e.end_date THEN 'Event ended'
+                        WHEN e.start_date IS NOT NULL AND NOW() < e.start_date THEN 'Event not started yet'
+                        ELSE ''
+                    END AS access_message
              FROM event e
              INNER JOIN panelist_event_assignment pea ON e.id = pea.event_id
              WHERE pea.panelist_id = ?`,

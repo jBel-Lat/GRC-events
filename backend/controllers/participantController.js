@@ -116,6 +116,30 @@ async function ensureBestCategoryTable(connection) {
     }
 }
 
+async function checkPanelistEventAccess(connection, eventId) {
+    const [rows] = await connection.query(
+        'SELECT id, start_date, end_date FROM event WHERE id = ? LIMIT 1',
+        [eventId]
+    );
+    if (!rows.length) {
+        return { allowed: false, message: ERROR_MESSAGES.EVENT_NOT_FOUND };
+    }
+
+    const event = rows[0];
+    const now = new Date();
+    const startDate = event.start_date ? new Date(event.start_date) : null;
+    const endDate = event.end_date ? new Date(event.end_date) : null;
+
+    if (startDate && !Number.isNaN(startDate.getTime()) && now < startDate) {
+        return { allowed: false, message: 'This event is not started yet.' };
+    }
+    if (endDate && !Number.isNaN(endDate.getTime()) && now > endDate) {
+        return { allowed: false, message: 'This event has ended and is now disabled for panelists.' };
+    }
+
+    return { allowed: true };
+}
+
 // Delete all participants for an event (admin)
 exports.deleteAllParticipantsForEvent = async (req, res) => {
     try {
@@ -565,6 +589,11 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
         const { event_id } = req.params;
         const panelistId = Number(req.user.id);
         const connection = await pool.getConnection();
+        const access = await checkPanelistEventAccess(connection, Number(event_id));
+        if (!access.allowed) {
+            connection.release();
+            return res.status(403).json({ success: false, message: access.message });
+        }
         await ensureBestCategoryTable(connection);
         // return one representative row per team (no per-member grading)
         let participants = [];
@@ -671,6 +700,11 @@ exports.toggleBestCategorySelection = async (req, res) => {
         }
 
         const connection = await pool.getConnection();
+        const access = await checkPanelistEventAccess(connection, eventId);
+        if (!access.allowed) {
+            connection.release();
+            return res.status(403).json({ success: false, message: access.message });
+        }
         await ensureBestCategoryTable(connection);
 
         const [assignmentRows] = await connection.query(
@@ -1001,6 +1035,11 @@ exports.getPanelistParticipantGrades = async (req, res) => {
         const { event_id, participant_id } = req.params;
         const panelistId = req.user.id;
         const connection = await pool.getConnection();
+        const access = await checkPanelistEventAccess(connection, Number(event_id));
+        if (!access.allowed) {
+            connection.release();
+            return res.status(403).json({ success: false, message: access.message });
+        }
         const [participantRows] = await connection.query(
             'SELECT id FROM participant WHERE id = ? AND event_id = ? LIMIT 1',
             [participant_id, event_id]
@@ -1045,6 +1084,11 @@ exports.submitGrade = async (req, res) => {
         }
 
         const connection = await pool.getConnection();
+        const access = await checkPanelistEventAccess(connection, parsedEventId);
+        if (!access.allowed) {
+            connection.release();
+            return res.status(403).json({ success: false, message: access.message });
+        }
         const [participantRows] = await connection.query(
             'SELECT id FROM participant WHERE id = ? AND event_id = ? LIMIT 1',
             [parsedParticipantId, parsedEventId]
