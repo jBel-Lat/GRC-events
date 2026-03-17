@@ -117,7 +117,7 @@ async function selectEvent(eventId) {
         
         // Load criteria
         loadEventCriteria(result.data.criteria);
-        switchEventDetailsTab('eventBreakdownTab');
+        switchEventDetailsTab('eventParticipantsTab');
         
         switchSection('eventDetails');
     }
@@ -694,7 +694,7 @@ function setupEventDetailsTabs() {
         });
     });
 
-    switchEventDetailsTab('eventBreakdownTab');
+    switchEventDetailsTab('eventParticipantsTab');
 }
 
 // Add styling for active tabs

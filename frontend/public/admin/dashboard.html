@@ -71,11 +71,12 @@
 
                 <div class="section" style="margin: 12px 0;">
                     <div id="eventDetailsTabs" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-                        <button type="button" class="btn btn-secondary event-details-tab active" data-tab-target="eventBreakdownTab">Breakdown</button>
-                        <button type="button" class="btn btn-secondary event-details-tab" data-tab-target="eventImportTab">Import/Template</button>
+                        <button type="button" class="btn btn-secondary event-details-tab active" data-tab-target="eventParticipantsTab">Participants</button>
+                        <button type="button" class="btn btn-secondary event-details-tab" data-tab-target="eventGoogleSheetTab">Google Sheet Submissions</button>
+                        <button type="button" class="btn btn-secondary event-details-tab" data-tab-target="eventExcelTab">Excel Import/Export</button>
                     </div>
 
-                    <div id="eventBreakdownTab" class="event-details-tab-panel" style="display:block;">
+                    <div id="eventParticipantsTab" class="event-details-tab-panel" style="display:block;">
                         <div class="section" style="margin: 12px 0; display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
                             <div>
                                 <label for="eventStudentWeightInput"><strong>Student Weight %</strong></label>
@@ -97,6 +98,57 @@
                             </div>
                         </div>
 
+                        <div class="event-details-container">
+                            <!-- Participants Section -->
+                            <div class="details-section">
+                                <div class="section-header">
+                                    <h2>Participants</h2>
+                                    <div class="header-actions">
+                                        <input type="text" id="participantsSearchBox" name="participantsSearch" class="search-box" placeholder="Search participants...">
+                                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                            <select id="participantSortDirection" class="search-box" style="min-width:140px; padding:0.45rem 0.8rem;">
+                                                <option value="desc">Highest to Lowest</option>
+                                                <option value="asc">Lowest to Highest</option>
+                                            </select>
+                                            <select id="participantProblemNameInput" name="participantProblemNameInput" class="search-box" style="min-width:170px; padding:0.45rem 0.8rem;">
+                                                <option value="">All Problems</option>
+                                                <option value="smartload">smartload</option>
+                                                <option value="roomsyn">roomsyn</option>
+                                                <option value="evalpro">evalpro</option>
+                                                <option value="concerntrack">concerntrack</option>
+                                            </select>
+                                            <input type="number" id="participantsLimitInput" name="participantsLimit" class="search-box" placeholder="Limit (e.g., 10)" min="1" style="width:120px; padding:0.45rem 0.8rem;">
+                                            <button id="applyParticipantSortBtn" class="btn btn-secondary">Apply</button>
+                                        </div>
+                                        <button id="deleteAllParticipantsBtn" class="btn btn-danger" style="background:#b33b32;">Delete All</button>
+                                        <button id="addParticipantBtn" class="btn btn-primary">+ Add Participant</button>
+                                    </div>
+                                </div>
+                                <div id="topBestCategoryBox" style="background:#fff8f6; border:1px solid #f0d3cf; border-radius:12px; padding:10px 12px; margin-bottom:10px;">
+                                    <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                                        <button id="exportTopBestExcelBtn" class="btn btn-secondary" type="button">Export Top Best (Excel)</button>
+                                        <button id="exportTopBestWordBtn" class="btn btn-secondary" type="button">Export Top Best (Word)</button>
+                                    </div>
+                                    <strong style="color:#9B0F06;">Top 3 Best Technical Implementation</strong>
+                                    <div id="topBestCategoryTechnicalList" class="text-muted" style="margin-top:6px;">No votes yet.</div>
+                                    <strong style="color:#9B0F06; display:block; margin-top:10px;">Top 3 Best Ethical &amp; Responsible AI Design</strong>
+                                    <div id="topBestCategoryEthicalList" class="text-muted" style="margin-top:6px;">No votes yet.</div>
+                                </div>
+                                <div id="participantsList" class="participants-list"></div>
+                            </div>
+
+                            <!-- Criteria Section -->
+                            <div class="details-section">
+                                <div class="section-header">
+                                    <h2>Grading Criteria</h2>
+                                    <button id="addCriteriaBtn" class="btn btn-primary">+ Add Criteria</button>
+                                </div>
+                                <div id="criteriaList" class="criteria-list"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="eventGoogleSheetTab" class="event-details-tab-panel" style="display:none;">
                         <div class="section" style="margin-bottom: 12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                             <input type="text" id="googleSheetUrlInput" class="search-box" placeholder="Google Sheet URL (public)" style="min-width: 320px;">
                             <button id="importSubmissionsBtn" class="btn btn-secondary">Import Submissions from Google Sheet</button>
@@ -120,61 +172,12 @@
                         </div>
                     </div>
 
-                    <div id="eventImportTab" class="event-details-tab-panel" style="display:none;">
+                    <div id="eventExcelTab" class="event-details-tab-panel" style="display:none;">
                         <div class="section" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                             <button id="downloadParticipantTemplateBtnTop" class="btn btn-secondary">Download Template</button>
                             <input type="file" id="importParticipantsInput" accept=".xlsx" style="display:none;">
                             <button id="importParticipantsBtn" class="btn btn-secondary">Import Participants (Excel)</button>
                         </div>
-                    </div>
-                </div>
-
-                <div class="event-details-container">
-                    <!-- Participants Section -->
-                    <div class="details-section">
-                        <div class="section-header">
-                            <h2>Participants</h2>
-                            <div class="header-actions">
-                                <input type="text" id="participantsSearchBox" name="participantsSearch" class="search-box" placeholder="Search participants...">
-                                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                                    <select id="participantSortDirection" class="search-box" style="min-width:140px; padding:0.45rem 0.8rem;">
-                                        <option value="desc">Highest to Lowest</option>
-                                        <option value="asc">Lowest to Highest</option>
-                                    </select>
-                                    <select id="participantProblemNameInput" name="participantProblemNameInput" class="search-box" style="min-width:170px; padding:0.45rem 0.8rem;">
-                                        <option value="">All Problems</option>
-                                        <option value="smartload">smartload</option>
-                                        <option value="roomsyn">roomsyn</option>
-                                        <option value="evalpro">evalpro</option>
-                                        <option value="concerntrack">concerntrack</option>
-                                    </select>
-                                    <input type="number" id="participantsLimitInput" name="participantsLimit" class="search-box" placeholder="Limit (e.g., 10)" min="1" style="width:120px; padding:0.45rem 0.8rem;">
-                                    <button id="applyParticipantSortBtn" class="btn btn-secondary">Apply</button>
-                                </div>
-                                <button id="deleteAllParticipantsBtn" class="btn btn-danger" style="background:#b33b32;">Delete All</button>
-                                <button id="addParticipantBtn" class="btn btn-primary">+ Add Participant</button>
-                            </div>
-                        </div>
-                        <div id="topBestCategoryBox" style="background:#fff8f6; border:1px solid #f0d3cf; border-radius:12px; padding:10px 12px; margin-bottom:10px;">
-                            <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-                                <button id="exportTopBestExcelBtn" class="btn btn-secondary" type="button">Export Top Best (Excel)</button>
-                                <button id="exportTopBestWordBtn" class="btn btn-secondary" type="button">Export Top Best (Word)</button>
-                            </div>
-                            <strong style="color:#9B0F06;">Top 3 Best Technical Implementation</strong>
-                            <div id="topBestCategoryTechnicalList" class="text-muted" style="margin-top:6px;">No votes yet.</div>
-                            <strong style="color:#9B0F06; display:block; margin-top:10px;">Top 3 Best Ethical &amp; Responsible AI Design</strong>
-                            <div id="topBestCategoryEthicalList" class="text-muted" style="margin-top:6px;">No votes yet.</div>
-                        </div>
-                        <div id="participantsList" class="participants-list"></div>
-                    </div>
-
-                    <!-- Criteria Section -->
-                    <div class="details-section">
-                        <div class="section-header">
-                            <h2>Grading Criteria</h2>
-                            <button id="addCriteriaBtn" class="btn btn-primary">+ Add Criteria</button>
-                        </div>
-                        <div id="criteriaList" class="criteria-list"></div>
                     </div>
                 </div>
             </section>
