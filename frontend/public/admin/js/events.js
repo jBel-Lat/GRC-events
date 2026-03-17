@@ -7,6 +7,7 @@ let currentTeamMembers = [];
 let participantSortDirection = 'desc';
 let participantLimit = null;
 let participantProblemNameFilter = '';
+let currentEventIsTournament = false;
 
 function resetParticipantModalState() {
     currentParticipantId = null;
@@ -129,6 +130,11 @@ function applyEventTypeUI(event) {
     const participantsTitle = document.getElementById('participantsSectionTitle');
     const criteriaSection = document.getElementById('criteriaDetailsSection');
     const isTournamentEvent = Number(event?.is_tournament) === 1 || event?.is_tournament === true;
+    currentEventIsTournament = isTournamentEvent;
+
+    const participantProblemSelect = document.getElementById('participantProblemNameInput');
+    const participantProblemModal = document.getElementById('participantProblemNameModal');
+    const participantProblemModalGroup = participantProblemModal?.closest('.form-group');
 
     if (participantsTabBtn) {
         participantsTabBtn.textContent = isTournamentEvent ? 'Tournament' : 'Participants';
@@ -138,6 +144,19 @@ function applyEventTypeUI(event) {
     }
     if (criteriaSection) {
         criteriaSection.style.display = isTournamentEvent ? 'none' : '';
+    }
+    if (participantProblemSelect) {
+        if (isTournamentEvent) {
+            participantProblemNameFilter = '';
+            participantProblemSelect.value = '';
+        }
+        participantProblemSelect.style.display = isTournamentEvent ? 'none' : '';
+    }
+    if (participantProblemModal) {
+        participantProblemModal.value = '';
+    }
+    if (participantProblemModalGroup) {
+        participantProblemModalGroup.style.display = isTournamentEvent ? 'none' : '';
     }
 }
 
@@ -188,7 +207,7 @@ async function loadEventParticipants(eventId) {
                 return participantSortDirection === 'asc' ? tA - tB : tB - tA;
             });
 
-            const filtered = participantProblemNameFilter
+            const filtered = (!currentEventIsTournament && participantProblemNameFilter)
                 ? sorted.filter(group => {
                     return (group.problem_name || '').toLowerCase() === participantProblemNameFilter.toLowerCase();
                 })
@@ -213,7 +232,7 @@ async function loadEventParticipants(eventId) {
                         </div>
                         <div class="event-card-info">
                             <div><strong>Reg Number:</strong> ${teamGroup.reg || 'N/A'}</div>
-                            <div><strong>Problem:</strong> ${teamGroup.problem_name || 'N/A'}</div>
+                            ${currentEventIsTournament ? '' : `<div><strong>Problem:</strong> ${teamGroup.problem_name || 'N/A'}</div>`}
                         </div>
                     </div>
                     <div class="event-card-actions">
@@ -256,7 +275,7 @@ async function loadTopBestCategory(eventId) {
 
     const renderRows = (rows) => rows.map((row, idx) => `
         <div style="display:flex; justify-content:space-between; gap:8px; padding:4px 0;">
-            <span><strong>#${idx + 1}</strong> ${row.participant_label}${row.problem_name ? ` (${row.problem_name})` : ''}</span>
+            <span><strong>#${idx + 1}</strong> ${row.participant_label}${(!currentEventIsTournament && row.problem_name) ? ` (${row.problem_name})` : ''}</span>
             <span style="font-weight:700; color:#9B0F06;">Avg: ${Number(row.average_score || 0).toFixed(2)} | ${row.votes} vote${Number(row.votes) === 1 ? '' : 's'}</span>
         </div>
     `).join('');
@@ -1157,7 +1176,7 @@ async function handleAddParticipant(e) {
 
     const eventId = currentEventId || sessionStorage.getItem('currentEventId');
     const teamName = document.getElementById('teamNameInput').value;
-    const problemName = document.getElementById('participantProblemNameModal')?.value || '';
+    const problemName = currentEventIsTournament ? '' : (document.getElementById('participantProblemNameModal')?.value || '');
 
     if (!eventId) {
         alert('No event selected. Please choose an event before adding participants.');

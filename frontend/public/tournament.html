@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Bracket Live View</title>
+    <link rel="stylesheet" href="/css/shared.css">
+    <link rel="stylesheet" href="/css/tournament.css">
+</head>
+<body>
+    <main class="tournament-page">
+        <header class="tournament-header">
+            <h1>Tournament Bracket</h1>
+            <p>Watch live battles match by match. Only one stream opens at a time.</p>
+        </header>
+
+        <section class="tournament-controls">
+            <label for="eventFilterSelect"><strong>Select Event</strong></label>
+            <select id="eventFilterSelect">
+                <option value="">All events</option>
+            </select>
+            <button id="refreshTournamentBtn" class="btn btn-secondary">Refresh</button>
+            <span id="tournamentRefreshNote" class="refresh-note">Auto-refresh: every 10 seconds</span>
+        </section>
+
+        <section id="tournamentStatusMessage" class="tournament-message" aria-live="polite"></section>
+
+        <section id="tournamentMatchesContainer" class="tournament-matches"></section>
+    </main>
+
+    <script src="/js/tournament.js"></script>
+</body>
+</html>

@@ -10,6 +10,7 @@ const participantRoutes = require('./routes/participantRoutes');
 const panelistRoutes = require('./routes/panelistRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const submissionRoutes = require('./routes/submissionRoutes');
+const matchRoutes = require('./routes/matchRoutes');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/participants', participantRoutes);
 app.use('/api/panelists', panelistRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/submissions', submissionRoutes);
+app.use('/api/matches', matchRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -47,6 +49,9 @@ app.get(`${ADMIN_BASE}/dashboard.html`, (req, res) => {
 });
 app.get(`${ADMIN_BASE}/`, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/index.html'));
+});
+app.get('/tournament', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/public/tournament.html'));
 });
 
 // 404 handler

@@ -660,6 +660,90 @@ class AdminApi {
             return { success: false, message: 'Network error' };
         }
     }
+
+    async getMatches(eventId = null) {
+        try {
+            const query = eventId ? `?event_id=${encodeURIComponent(eventId)}` : '';
+            const response = await fetch(`${API_BASE_URL}/matches${query}`, {
+                headers: this.getHeaders(),
+                cache: 'no-store'
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Get matches error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
+    async generateMatches(payload) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/matches/generate`, {
+                method: 'POST',
+                headers: this.getHeaders(),
+                body: JSON.stringify(payload)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Generate matches error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
+    async updateMatchLiveUrl(matchId, facebookLiveUrl) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/matches/${matchId}/live`, {
+                method: 'PUT',
+                headers: this.getHeaders(),
+                body: JSON.stringify({ facebook_live_url: facebookLiveUrl || '' })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Update match live URL error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
+    async updateMatchStatus(matchId, status) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/matches/${matchId}/status`, {
+                method: 'PUT',
+                headers: this.getHeaders(),
+                body: JSON.stringify({ status })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Update match status error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
+    async updateMatchWinner(matchId, winnerSide) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/matches/${matchId}/winner`, {
+                method: 'PUT',
+                headers: this.getHeaders(),
+                body: JSON.stringify({ winner_side: winnerSide })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Update match winner error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
+    async updateMatchOpponents(matchId, payload) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/matches/${matchId}/opponents`, {
+                method: 'PUT',
+                headers: this.getHeaders(),
+                body: JSON.stringify(payload)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Update match opponents error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
 }
 
 const adminApi = new AdminApi();

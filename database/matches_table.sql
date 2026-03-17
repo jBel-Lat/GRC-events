@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS matches (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    round_name VARCHAR(100) NOT NULL,
+    round_number INT NOT NULL DEFAULT 1,
+    teamA VARCHAR(255) NOT NULL,
+    teamB VARCHAR(255) NOT NULL,
+    teamA_participant_id INT NULL,
+    teamB_participant_id INT NULL,
+    status ENUM('pending', 'ongoing', 'finished') NOT NULL DEFAULT 'pending',
+    facebook_live_url TEXT NULL,
+    winner_team_id INT NULL,
+    match_order INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_matches_event_round (event_id, round_number, match_order),
+    CONSTRAINT fk_matches_event FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE,
+    CONSTRAINT fk_matches_teamA_participant FOREIGN KEY (teamA_participant_id) REFERENCES participant(id) ON DELETE SET NULL,
+    CONSTRAINT fk_matches_teamB_participant FOREIGN KEY (teamB_participant_id) REFERENCES participant(id) ON DELETE SET NULL,
+    CONSTRAINT fk_matches_winner_participant FOREIGN KEY (winner_team_id) REFERENCES participant(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

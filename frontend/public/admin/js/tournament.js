@@ -1,566 +1,626 @@
 /**
  * Tournament Management Module
- * Manages tournament events, team registration, and bracket generation
+ * Admin view: team management + bracket matches with per-match live links.
  */
 
 let tournamentState = {
     selectedEventId: null,
     selectedTeams: [],
     eventTeams: [],
-    currentRound: 1,
-    matchResults: {}, // {matchId: winnerId}
-    bracket: [] // stores bracket structure
+    matches: [],
+    expandedMatchId: null,
+    autoRefreshTimer: null
 };
 
-// Initialize tournament module
 function initTournament() {
     setupEventListeners();
-    // Don't load events/teams on init - load them when user navigates to tournament section
 }
 
-// Setup event listeners
 function setupEventListeners() {
-    // Create tournament button
     document.getElementById('createTournamentBtn')?.addEventListener('click', openCreateTournamentModal);
-    
-    // Create tournament form
     document.getElementById('createTournamentForm')?.addEventListener('submit', handleCreateTournament);
-    
-    // Tournament event selection
     document.getElementById('tournamentEventSelect')?.addEventListener('change', handleTournamentEventSelect);
-    
-    // Add team button
     document.getElementById('addTeamToTournamentBtn')?.addEventListener('click', openAddTeamModal);
-    
-    // Add team form
     document.getElementById('addTeamToTournamentForm')?.addEventListener('submit', handleAddTeamToTournament);
-    
-    // Generate bracket button
     document.getElementById('generateBracketBtn')?.addEventListener('click', generateBracket);
+    document.getElementById('refreshMatchesBtn')?.addEventListener('click', () => {
+        if (tournamentState.selectedEventId) loadMatchesForEvent(tournamentState.selectedEventId);
+    });
+
     document.getElementById('bracketTypeSelect')?.addEventListener('change', updateBracketButtonLabel);
-    
-    // Modal close buttons
-    document.querySelectorAll('.modal .close-btn').forEach(btn => {
-        btn.addEventListener('click', closeAllModals);
-    });
-    
-    document.querySelectorAll('.close-btn-action').forEach(btn => {
-        btn.addEventListener('click', closeAllModals);
-    });
-    
-    // Listen for tournament section navigation
+
+    document.querySelectorAll('.modal .close-btn').forEach((btn) => btn.addEventListener('click', closeAllModals));
+    document.querySelectorAll('.close-btn-action').forEach((btn) => btn.addEventListener('click', closeAllModals));
+
     const tournamentSection = document.getElementById('tournamentSection');
-    if (tournamentSection) {
-        // Use a mutation observer to detect when the tournament section becomes active
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class') {
-                    if (tournamentSection.classList.contains('active')) {
-                        // Load data when tournament section becomes active
-                        loadTournamentEvents();
-                    }
-                }
-            });
-        });
-        
-        observer.observe(tournamentSection, { attributes: true, attributeFilter: ['class'] });
-    }
+    if (!tournamentSection) return;
+
+    const observer = new MutationObserver(() => {
+        const isActive = tournamentSection.classList.contains('active');
+        if (isActive) {
+            loadTournamentEvents();
+            startAutoRefresh();
+            if (tournamentState.selectedEventId) {
+                loadMatchesForEvent(tournamentState.selectedEventId);
+            }
+        } else {
+            stopAutoRefresh();
+        }
+    });
+
+    observer.observe(tournamentSection, { attributes: true, attributeFilter: ['class'] });
 }
 
 function updateBracketButtonLabel() {
     const btn = document.getElementById('generateBracketBtn');
     const select = document.getElementById('bracketTypeSelect');
     if (!btn || !select) return;
-    btn.textContent = select.value === 'mobile_legends'
-        ? 'Generate Mobile Legends Bracket'
-        : 'Generate Bracket';
+    btn.textContent = select.value === 'mobile_legends' ? 'Generate Mobile Legends Bracket' : 'Generate Bracket';
 }
 
-// Load all tournament events
+function startAutoRefresh() {
+    stopAutoRefresh();
+    tournamentState.autoRefreshTimer = setInterval(() => {
+        if (tournamentState.selectedEventId) {
+            loadMatchesForEvent(tournamentState.selectedEventId, { silent: true });
+        }
+    }, 10000);
+}
+
+function stopAutoRefresh() {
+    if (tournamentState.autoRefreshTimer) {
+        clearInterval(tournamentState.autoRefreshTimer);
+        tournamentState.autoRefreshTimer = null;
+    }
+}
+
 async function loadTournamentEvents() {
     try {
-        const token = localStorage.getItem('adminToken');
-        if (!token) {
-            console.error('No authorization token found');
-            return;
+        const result = await adminApi.getEvents();
+        if (!result.success || !Array.isArray(result.data)) {
+            throw new Error(result.message || 'Unable to load events.');
         }
-        
-        const response = await fetch('/api/events', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        const events = data.data || data;
-        
-        if (!Array.isArray(events)) {
-            throw new Error('Events data is not an array');
-        }
-        
-        console.log('All events loaded:', events); // Debug log
-        
-        // Filter only tournament events (handle true, 1, and string '1')
-        const tournamentEvents = events.filter(event => {
-            const isTournament = event.is_tournament === true || event.is_tournament === 1 || String(event.is_tournament) === '1';
-            console.log(`Event "${event.event_name}" - is_tournament value: ${event.is_tournament}, is tournament: ${isTournament}`);
-            return isTournament;
-        });
-        
-        console.log('Filtered tournament events:', tournamentEvents); // Debug log
-        
+
+        const tournamentEvents = result.data.filter((event) => (
+            event.is_tournament === true || event.is_tournament === 1 || String(event.is_tournament) === '1'
+        ));
+
         const select = document.getElementById('tournamentEventSelect');
+        if (!select) return;
+
+        const selectedBefore = String(tournamentState.selectedEventId || '');
         select.innerHTML = '<option value="">-- Choose a tournament event --</option>';
-        
-        if (tournamentEvents.length === 0) {
-            select.innerHTML += '<option disabled style="color: #999;">No tournament events available. Create an event and mark it as a tournament event.</option>';
-            showTournamentMessage('No tournament events found. Create an event with "Tournament Event" checkbox enabled.', 'info');
-        } else {
-            tournamentEvents.forEach(event => {
-                const option = document.createElement('option');
-                option.value = event.id;
-                option.textContent = event.event_name || event.name;
-                select.appendChild(option);
-            });
+
+        tournamentEvents.forEach((event) => {
+            const option = document.createElement('option');
+            option.value = event.id;
+            option.textContent = event.event_name || event.name;
+            if (selectedBefore && selectedBefore === String(event.id)) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+
+        if (!tournamentEvents.length) {
+            showTournamentMessage('No tournament events found. Create an event and enable tournament mode.', 'info');
         }
     } catch (error) {
         console.error('Error loading tournament events:', error);
-        showTournamentMessage('Error loading events: ' + error.message, 'error');
+        showTournamentMessage(`Error loading events: ${error.message}`, 'error');
     }
 }
 
-// Handle tournament event selection
-function handleTournamentEventSelect(e) {
-    const eventId = e.target.value;
+async function handleTournamentEventSelect(e) {
+    const eventId = Number(e.target.value) || null;
     tournamentState.selectedEventId = eventId;
-    
-    if (eventId) {
+    tournamentState.expandedMatchId = null;
+
+    const teamsArea = document.getElementById('teamsManagementArea');
+    const bracketArea = document.getElementById('bracketGenerationArea');
+
+    if (!eventId) {
         tournamentState.eventTeams = [];
         tournamentState.selectedTeams = [];
-        loadTeamsForEvent(eventId);
-        document.getElementById('teamsManagementArea').style.display = 'block';
-        document.getElementById('bracketGenerationArea').style.display = 'none';
-        tournamentState.currentRound = 1;
-        tournamentState.matchResults = {};
-        tournamentState.bracket = [];
-    } else {
-        document.getElementById('teamsManagementArea').style.display = 'none';
-        document.getElementById('bracketGenerationArea').style.display = 'none';
-        tournamentState.eventTeams = [];
-    }
-}
-
-// Load teams for selected event
-async function loadTeamsForEvent(eventId) {
-    try {
-        const token = localStorage.getItem('adminToken');
-        if (!token) {
-            console.error('No authorization token found');
-            return;
-        }
-        
-        const response = await fetch(`/api/participants/admin/event/${eventId}`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        const participants = data.data || data;
-        
-        if (!Array.isArray(participants)) {
-            throw new Error('Participants data is not an array');
-        }
-        
-        // Store only teams that belong to this tournament event.
-        tournamentState.eventTeams = participants;
-        tournamentState.selectedTeams = [...participants];
-        renderTournamentTeamsList(tournamentState.selectedTeams);
-        
-        // Show bracket area if teams exist
-        if (participants.length > 0) {
-            document.getElementById('bracketGenerationArea').style.display = 'block';
-        }
-    } catch (error) {
-        console.error('Error loading teams for event:', error);
-        showTournamentMessage('Error loading teams: ' + error.message, 'error');
-    }
-}
-
-// Render teams list for tournament
-function renderTournamentTeamsList(teams) {
-    const container = document.getElementById('tournamentTeamsList');
-    
-    if (teams.length === 0) {
-        container.innerHTML = '<p style="color: #999;">No teams added yet. Click "+ Add Team" to get started.</p>';
+        tournamentState.matches = [];
+        if (teamsArea) teamsArea.style.display = 'none';
+        if (bracketArea) bracketArea.style.display = 'none';
+        renderTournamentTeamsList([]);
+        renderMatches([]);
         return;
     }
-    
-    container.innerHTML = teams.map((team, index) => `
-        <div class="tournament-team-card" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; 
-            background: #f5f5f5; border-radius: 4px; margin-bottom: 8px;">
+
+    if (teamsArea) teamsArea.style.display = 'block';
+    if (bracketArea) bracketArea.style.display = 'block';
+
+    await loadTeamsForEvent(eventId);
+    await loadMatchesForEvent(eventId);
+}
+
+async function loadTeamsForEvent(eventId) {
+    try {
+        const result = await adminApi.getEventParticipants(eventId);
+        if (!result.success || !Array.isArray(result.data)) {
+            throw new Error(result.message || 'Unable to load teams.');
+        }
+
+        const groups = new Map();
+        result.data.forEach((participant) => {
+            const teamName = (participant.team_name || '').trim();
+            if (!teamName) return;
+            if (!groups.has(teamName)) {
+                groups.set(teamName, {
+                    id: participant.id,
+                    team_name: teamName,
+                    registration_number: participant.registration_number || ''
+                });
+            }
+        });
+
+        tournamentState.eventTeams = Array.from(groups.values());
+        tournamentState.selectedTeams = [...tournamentState.eventTeams];
+        renderTournamentTeamsList(tournamentState.selectedTeams);
+    } catch (error) {
+        console.error('Error loading teams for event:', error);
+        showTournamentMessage(`Error loading teams: ${error.message}`, 'error');
+    }
+}
+
+function renderTournamentTeamsList(teams) {
+    const container = document.getElementById('tournamentTeamsList');
+    if (!container) return;
+
+    if (!teams.length) {
+        container.innerHTML = '<p style="color:#999;">No teams selected yet.</p>';
+        return;
+    }
+
+    container.innerHTML = teams.map((team) => `
+        <div class="tournament-team-card" style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:#f5f5f5; border-radius:8px; margin-bottom:8px; gap:10px;">
             <div>
-                <div style="font-weight: bold;">${team.team_name || team.participant_name || team.name}</div>
-                <div style="font-size: 0.9em; color: #666;">${team.registration_number || 'Team'}</div>
+                <div style="font-weight:700;">${escapeHtml(team.team_name)}</div>
+                <div style="font-size:0.85em; color:#666;">${escapeHtml(team.registration_number || 'Team')}</div>
             </div>
-            <button class="btn btn-danger btn-small" onclick="removeTeamFromTournament(${team.id})">Remove</button>
+            <button class="btn btn-danger btn-small" onclick="removeTeamFromTournament(${Number(team.id)})">Remove</button>
         </div>
     `).join('');
 }
 
-// Remove team from tournament
 function removeTeamFromTournament(teamId) {
-    tournamentState.selectedTeams = tournamentState.selectedTeams.filter(t => t.id !== teamId);
+    tournamentState.selectedTeams = tournamentState.selectedTeams.filter((team) => Number(team.id) !== Number(teamId));
     renderTournamentTeamsList(tournamentState.selectedTeams);
-    
-    // Reset bracket if teams change
-    tournamentState.currentRound = 1;
-    tournamentState.matchResults = {};
-    tournamentState.bracket = [];
-    document.getElementById('bracketContainer').innerHTML = '';
-    
-    if (tournamentState.selectedTeams.length === 0) {
-        document.getElementById('bracketGenerationArea').style.display = 'none';
-    }
 }
 
-// Open create tournament modal
 function openCreateTournamentModal() {
-    document.getElementById('createTournamentModal').style.display = 'block';
+    const modal = document.getElementById('createTournamentModal');
+    if (modal) modal.style.display = 'block';
 }
 
-// Handle create tournament
 async function handleCreateTournament(e) {
     e.preventDefault();
-    
-    const name = document.getElementById('tournamentEventName').value;
-    const description = document.getElementById('tournamentEventDescription').value;
-    
-    // Get today's date
+
+    const name = document.getElementById('tournamentEventName')?.value?.trim() || '';
+    const description = document.getElementById('tournamentEventDescription')?.value?.trim() || '';
+
+    if (!name) {
+        showTournamentMessage('Tournament name is required.', 'error');
+        return;
+    }
+
     const today = new Date().toISOString().split('T')[0];
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + 30);
-    const endDateStr = endDate.toISOString().split('T')[0];
-    
-    try {
-        const response = await fetch('/api/events', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-            },
-            body: JSON.stringify({
-                event_name: name,
-                description: description,
-                start_date: today,
-                end_date: endDateStr,
-                is_tournament: true,
-                criteria: []
-            })
-        });
-        
-        if (response.ok) {
-            showTournamentMessage('Tournament created successfully!', 'success');
-            closeAllModals();
-            document.getElementById('createTournamentForm').reset();
-            loadTournamentEvents();
-        } else {
-            const errorData = await response.json();
-            console.error('Response error:', errorData);
-            showTournamentMessage(errorData.message || 'Error creating tournament', 'error');
-        }
-    } catch (error) {
-        console.error('Error creating tournament:', error);
-        showTournamentMessage('Error creating tournament: ' + error.message, 'error');
+
+    const result = await adminApi.createEvent({
+        event_name: name,
+        description,
+        start_date: today,
+        end_date: endDate.toISOString().split('T')[0],
+        is_tournament: true,
+        criteria: []
+    });
+
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Failed to create tournament event.', 'error');
+        return;
     }
+
+    showTournamentMessage('Tournament event created successfully.', 'success');
+    closeAllModals();
+    document.getElementById('createTournamentForm')?.reset();
+    loadTournamentEvents();
 }
 
-// Open add team modal
 function openAddTeamModal() {
     if (!tournamentState.selectedEventId) {
-        showTournamentMessage('Please select a tournament event first', 'error');
+        showTournamentMessage('Please select a tournament event first.', 'error');
         return;
     }
 
-    if (!Array.isArray(tournamentState.eventTeams) || tournamentState.eventTeams.length === 0) {
-        showTournamentMessage('No teams available for this tournament event.', 'info');
+    const select = document.getElementById('availableTeamsSelect');
+    if (!select) return;
+
+    const availableTeams = tournamentState.eventTeams.filter(
+        (team) => !tournamentState.selectedTeams.some((selected) => Number(selected.id) === Number(team.id))
+    );
+
+    if (!availableTeams.length) {
+        showTournamentMessage('No additional teams available for this tournament event.', 'info');
         return;
     }
-    
-    const select = document.getElementById('availableTeamsSelect');
+
     select.innerHTML = '<option value="">-- Choose a team --</option>';
-    
-    // Only show teams from the currently selected tournament event.
-    const availableTeams = tournamentState.eventTeams.filter(
-        team => !tournamentState.selectedTeams.some(t => t.id === team.id)
-    );
-    
-    availableTeams.forEach(team => {
+    availableTeams.forEach((team) => {
         const option = document.createElement('option');
         option.value = team.id;
-        option.textContent = team.team_name || team.participant_name || team.name;
+        option.textContent = team.team_name;
         select.appendChild(option);
     });
-    
-    document.getElementById('addTeamToTournamentModal').style.display = 'block';
+
+    const modal = document.getElementById('addTeamToTournamentModal');
+    if (modal) modal.style.display = 'block';
 }
 
-// Handle add team to tournament
 function handleAddTeamToTournament(e) {
     e.preventDefault();
-    
-    const teamId = parseInt(document.getElementById('availableTeamsSelect').value);
-    
-    if (!teamId) {
-        showTournamentMessage('Please select a team', 'error');
+
+    const teamId = Number(document.getElementById('availableTeamsSelect')?.value);
+    if (!Number.isFinite(teamId) || teamId <= 0) {
+        showTournamentMessage('Please select a valid team.', 'error');
         return;
     }
-    
-    // Add team to selected teams
-    const team = tournamentState.eventTeams.find(t => t.id === teamId);
+
+    const team = tournamentState.eventTeams.find((entry) => Number(entry.id) === teamId);
     if (!team) {
-        showTournamentMessage('Team not found', 'error');
+        showTournamentMessage('Team not found.', 'error');
         return;
     }
-    
+
     tournamentState.selectedTeams.push(team);
     renderTournamentTeamsList(tournamentState.selectedTeams);
-    document.getElementById('bracketGenerationArea').style.display = 'block';
-    
     closeAllModals();
-    document.getElementById('addTeamToTournamentForm').reset();
-    showTournamentMessage('Team added successfully!', 'success');
+    document.getElementById('addTeamToTournamentForm')?.reset();
+    showTournamentMessage('Team added to tournament pool.', 'success');
 }
 
-// Generate bracket
 async function generateBracket() {
-    if (tournamentState.selectedTeams.length === 0) {
-        showTournamentMessage('No teams in tournament', 'error');
+    if (!tournamentState.selectedEventId) {
+        showTournamentMessage('Please select a tournament event first.', 'error');
         return;
     }
-    
-    try {
-        const bracketType = document.getElementById('bracketTypeSelect')?.value || 'single_elimination';
-        let bracketTeams = [...tournamentState.selectedTeams];
 
-        if (bracketType === 'mobile_legends') {
-            // Keep stable ordering to mimic seeded Mobile Legends style brackets.
-            bracketTeams = [...tournamentState.selectedTeams];
-            showTournamentMessage('Mobile Legends bracket generated with seeded ordering.', 'success');
-        } else {
-            // Default single elimination uses shuffled seeding.
-            bracketTeams = [...tournamentState.selectedTeams].sort(() => Math.random() - 0.5);
-        }
-
-        // Generate bracket
-        tournamentState.bracket = generateBracketStructure(bracketTeams);
-        tournamentState.matchResults = {}; // Reset match results
-        tournamentState.currentRound = 1;
-        
-        renderBracketWithSelection(tournamentState.bracket, 1);
-        
-        if (bracketType !== 'mobile_legends') {
-            showTournamentMessage('Bracket generated successfully! Click on teams to select winners.', 'success');
-        }
-    } catch (error) {
-        console.error('Error generating bracket:', error);
-        showTournamentMessage('Error generating bracket', 'error');
+    if (tournamentState.selectedTeams.length < 2) {
+        showTournamentMessage('At least 2 teams are required to generate a bracket.', 'error');
+        return;
     }
+
+    const bracketType = document.getElementById('bracketTypeSelect')?.value || 'single_elimination';
+    const payload = {
+        event_id: tournamentState.selectedEventId,
+        team_ids: tournamentState.selectedTeams.map((team) => team.id),
+        bracket_type: bracketType
+    };
+
+    const result = await adminApi.generateMatches(payload);
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Failed to generate bracket matches.', 'error');
+        return;
+    }
+
+    tournamentState.expandedMatchId = null;
+    showTournamentMessage('Bracket generated successfully.', 'success');
+    await loadMatchesForEvent(tournamentState.selectedEventId);
 }
 
-// Generate single elimination bracket structure
-function generateBracketStructure(teams) {
-    // Calculate next power of 2
-    const targetSize = Math.pow(2, Math.ceil(Math.log2(teams.length)));
-    
-    // Pad with BYEs
-    const paddedTeams = [...teams];
-    while (paddedTeams.length < targetSize) {
-        paddedTeams.push({ id: null, name: 'BYE' });
+async function loadMatchesForEvent(eventId, options = {}) {
+    const { silent = false } = options;
+    if (!eventId) return;
+
+    const result = await adminApi.getMatches(eventId);
+    if (!result.success) {
+        if (!silent) {
+            showTournamentMessage(result.message || 'Unable to load matches.', 'error');
+        }
+        return;
     }
-    
-    // Create first round matches
-    const matches = [];
-    for (let i = 0; i < paddedTeams.length; i += 2) {
-        matches.push({
-            team1: paddedTeams[i],
-            team2: paddedTeams[i + 1],
-            round: 1,
-            matchIndex: i / 2
-        });
-    }
-    
-    return matches;
+
+    tournamentState.matches = Array.isArray(result.data) ? result.data : [];
+    renderMatches(tournamentState.matches);
 }
 
-// Render bracket using flexbox with selection capability
-function renderBracketWithSelection(matches, round) {
+function renderMatches(matches) {
     const container = document.getElementById('bracketContainer');
-    
-    let html = `
-        <div style="margin-bottom: 20px; padding: 12px; background: #f0f0f0; border-radius: 4px;">
-            <strong>Round ${round}</strong> - Click on a team to select them as the winner
-        </div>
-        <div style="display: flex; gap: 40px; overflow-x: auto; padding: 20px;">
-            <div class="bracket-round" style="flex-shrink: 0;">
-                <h4 style="margin-bottom: 12px;">Round ${round}</h4>
-    `;
-    
-    matches.forEach((match, idx) => {
-        const matchId = `match_${round}_${idx}`;
-        const selectedWinnerId = tournamentState.matchResults[matchId];
-        
-        const team1Name = match.team1 ? (match.team1.team_name || match.team1.participant_name || match.team1.name) : 'BYE';
-        const team1Id = match.team1?.id;
-        const team2Name = match.team2 ? (match.team2.team_name || match.team2.participant_name || match.team2.name) : 'BYE';
-        const team2Id = match.team2?.id;
-        
-        // Determine if each team is selected as winner
-        const team1Selected = selectedWinnerId === team1Id;
-        const team2Selected = selectedWinnerId === team2Id;
-        
-        html += `
-            <div class="match-container" style="margin-bottom: 12px;">
-                <div style="border: 2px solid #ddd; border-radius: 4px; overflow: hidden; background: white;">
-                    <div class="team-option" data-match-id="${matchId}" data-winner-id="${team1Id}" 
-                         onclick="selectWinner('${matchId}', ${team1Id})"
-                         style="padding: 10px; cursor: pointer; background: ${team1Selected ? '#667eea' : '#f9f9f9'}; 
-                                 color: ${team1Selected ? 'white' : 'black'}; border-bottom: 1px solid #ddd;
-                                 transition: all 0.2s; font-weight: ${team1Selected ? 'bold' : 'normal'};">
-                        ${team1Name} ${team1Selected ? '✓' : ''}
-                    </div>
-                    <div class="team-option" data-match-id="${matchId}" data-winner-id="${team2Id}"
-                         onclick="selectWinner('${matchId}', ${team2Id})"
-                         style="padding: 10px; cursor: pointer; background: ${team2Selected ? '#667eea' : '#f9f9f9'}; 
-                                 color: ${team2Selected ? 'white' : 'black'};
-                                 transition: all 0.2s; font-weight: ${team2Selected ? 'bold' : 'normal'};">
-                        ${team2Name} ${team2Selected ? '✓' : ''}
-                    </div>
+    if (!container) return;
+
+    if (!matches.length) {
+        container.innerHTML = '<p style="color:#777; margin:0;">No matches yet. Generate a bracket to create match cards.</p>';
+        return;
+    }
+
+    const grouped = matches.reduce((acc, match) => {
+        const key = match.round_name || `Round ${match.round_number || 1}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(match);
+        return acc;
+    }, {});
+
+    const roundsHtml = Object.keys(grouped).map((roundName) => {
+        const roundMatches = grouped[roundName]
+            .slice()
+            .sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
+
+        const cards = roundMatches.map((match) => renderMatchCard(match)).join('');
+        return `
+            <section class="admin-round-block" style="margin-bottom:16px;">
+                <h4 style="margin:0 0 10px 0; color:#1f2a44;">${escapeHtml(roundName)}</h4>
+                <div style="display:grid; gap:12px;">${cards}</div>
+            </section>
+        `;
+    }).join('');
+
+    container.innerHTML = roundsHtml;
+}
+
+function renderMatchCard(match) {
+    const matchId = Number(match.id);
+    const isExpanded = tournamentState.expandedMatchId === matchId;
+    const status = String(match.status || 'pending').toLowerCase();
+    const statusColor = status === 'ongoing' ? '#b91c1c' : status === 'finished' ? '#166534' : '#475569';
+    const hasLive = Boolean((match.facebook_live_url || '').trim());
+    const showLiveBadge = status === 'ongoing' && hasLive;
+    const winnerSide = Number(match.winner_team_id) && Number(match.winner_team_id) === Number(match.teamA_participant_id)
+        ? 'teamA'
+        : (Number(match.winner_team_id) && Number(match.winner_team_id) === Number(match.teamB_participant_id) ? 'teamB' : 'none');
+    const winnerLabel = winnerSide === 'teamA'
+        ? `${match.teamA} (Team A)`
+        : (winnerSide === 'teamB' ? `${match.teamB} (Team B)` : 'Not selected');
+
+    return `
+        <article class="admin-match-card" style="border:1px solid #e2e8f0; border-radius:10px; padding:12px; background:#fff;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:0.9em; color:#64748b; margin-bottom:4px;">Match #${Number(match.match_order || 0)}</div>
+                    <div style="font-size:1rem; font-weight:700;">${escapeHtml(match.teamA)} <span style="color:#64748b;">vs</span> ${escapeHtml(match.teamB)}</div>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <span style="padding:3px 8px; border-radius:999px; font-size:0.75rem; font-weight:700; color:#fff; background:${statusColor}; text-transform:uppercase;">${escapeHtml(status)}</span>
+                    ${showLiveBadge ? '<span style="padding:3px 8px; border-radius:999px; font-size:0.75rem; font-weight:700; color:#fff; background:#dc2626;">LIVE</span>' : ''}
                 </div>
             </div>
-        `;
-    });
-    
-    html += `
+            <div style="margin-top:8px; font-size:0.9em; color:#334155;"><strong>Winner:</strong> ${escapeHtml(winnerLabel)}</div>
+
+            <div style="display:grid; grid-template-columns: minmax(180px, 1fr) auto auto auto; gap:8px; margin-top:10px; align-items:center;" class="admin-match-controls">
+                <input type="text" id="matchLiveUrl-${matchId}" value="${escapeAttr(match.facebook_live_url || '')}" placeholder="Paste Facebook Live URL" class="search-box" style="width:100%;">
+                <button class="btn btn-secondary" onclick="saveMatchLiveUrl(${matchId})">Save Link</button>
+                <button class="btn btn-secondary" onclick="removeMatchLiveUrl(${matchId})">Remove Link</button>
+                <select id="matchStatus-${matchId}" class="search-box" style="padding:8px 10px;">
+                    <option value="pending" ${status === 'pending' ? 'selected' : ''}>Pending</option>
+                    <option value="ongoing" ${status === 'ongoing' ? 'selected' : ''}>Ongoing</option>
+                    <option value="finished" ${status === 'finished' ? 'selected' : ''}>Finished</option>
+                </select>
             </div>
-        </div>
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button onclick="proceedToNextRound()" class="btn btn-primary" id="nextRoundBtn" style="display: ${canProceedToNextRound(matches) ? 'block' : 'none'};">
-                Next Round →
-            </button>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                <button class="btn btn-primary" onclick="updateMatchStatus(${matchId})">Update Status</button>
+                <button class="btn btn-secondary" onclick="toggleMatchVideo(${matchId})">${isExpanded ? 'Switch Video' : 'Watch Video'}</button>
+            </div>
+            <div style="display:grid; grid-template-columns: minmax(170px,1fr) minmax(170px,1fr) auto auto; gap:8px; margin-top:8px; align-items:center;" class="admin-match-controls">
+                <input type="text" id="matchTeamA-${matchId}" value="${escapeAttr(match.teamA || '')}" class="search-box" placeholder="Team A name">
+                <input type="text" id="matchTeamB-${matchId}" value="${escapeAttr(match.teamB || '')}" class="search-box" placeholder="Team B name">
+                <button class="btn btn-secondary" onclick="saveMatchOpponents(${matchId})">Update Opponents</button>
+                <select id="matchWinner-${matchId}" class="search-box" style="padding:8px 10px;">
+                    <option value="none" ${winnerSide === 'none' ? 'selected' : ''}>No Winner</option>
+                    <option value="teamA" ${winnerSide === 'teamA' ? 'selected' : ''}>Winner: Team A</option>
+                    <option value="teamB" ${winnerSide === 'teamB' ? 'selected' : ''}>Winner: Team B</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                <button class="btn btn-primary" onclick="saveMatchWinner(${matchId})">Update Winner</button>
+                <button class="btn btn-secondary" onclick="revertMatchWinner(${matchId})">Revert Winner</button>
+            </div>
+
+            <div class="match-video-panel ${isExpanded ? 'expanded' : ''}" style="margin-top:10px; overflow:hidden; transition:max-height .25s ease, opacity .25s ease; max-height:${isExpanded ? '700px' : '0'}; opacity:${isExpanded ? '1' : '0'};">
+                ${isExpanded ? renderMatchVideoPanel(match) : ''}
+            </div>
+        </article>
+    `;
+}
+
+function renderMatchVideoPanel(match) {
+    const rawUrl = (match.facebook_live_url || '').trim();
+    if (!rawUrl) {
+        return `
+            <div style="padding:10px; border:1px dashed #cbd5e1; border-radius:8px; background:#f8fafc;">
+                <p style="margin:0 0 8px 0; color:#475569;">Live stream not available for this battle yet.</p>
+                <button class="btn btn-secondary" onclick="minimizeMatchVideo()">Minimize Video</button>
+            </div>
+        `;
+    }
+
+    const embedUrl = toFacebookEmbedUrl(rawUrl);
+    return `
+        <div style="padding:10px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc;">
+            <div style="position:relative; padding-top:56.25%; border-radius:8px; overflow:hidden; background:#000;">
+                <iframe
+                    src="${escapeAttr(embedUrl)}"
+                    style="position:absolute; inset:0; width:100%; height:100%; border:0;"
+                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                    allowfullscreen
+                    loading="lazy"
+                    title="Match ${Number(match.id)} live video"
+                ></iframe>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                <a class="btn btn-secondary" href="${escapeAttr(rawUrl)}" target="_blank" rel="noopener">Watch on Facebook</a>
+                <button class="btn btn-secondary" onclick="minimizeMatchVideo()">Minimize Video</button>
+            </div>
         </div>
     `;
-    
-    container.innerHTML = html;
 }
 
-// Check if all matches in current round have winners selected
-function canProceedToNextRound(matches) {
-    return matches.every((match, idx) => {
-        const matchId = `match_${tournamentState.currentRound}_${idx}`;
-        return tournamentState.matchResults[matchId] !== undefined;
-    });
+function toFacebookEmbedUrl(url) {
+    const trimmed = String(url || '').trim();
+    if (!trimmed) return '';
+    if (trimmed.includes('facebook.com/plugins/video.php')) return trimmed;
+    return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(trimmed)}&show_text=false&width=1280`;
 }
 
-// Select a winner for a match
-function selectWinner(matchId, teamId) {
-    // Toggle: if same team clicked again, deselect
-    if (tournamentState.matchResults[matchId] === teamId) {
-        delete tournamentState.matchResults[matchId];
+function toggleMatchVideo(matchId) {
+    const parsedId = Number(matchId);
+    if (!Number.isFinite(parsedId) || parsedId <= 0) return;
+
+    if (tournamentState.expandedMatchId === parsedId) {
+        tournamentState.expandedMatchId = null;
     } else {
-        tournamentState.matchResults[matchId] = teamId;
+        tournamentState.expandedMatchId = parsedId;
     }
-    
-    // Re-render current round
-    renderBracketWithSelection(tournamentState.bracket, tournamentState.currentRound);
-    
-    // Check if all matches have winners
-    if (canProceedToNextRound(tournamentState.bracket)) {
-        showTournamentMessage('All matches have winners! Click "Next Round" to continue.', 'success');
-    }
+
+    renderMatches(tournamentState.matches);
 }
 
-// Proceed to next round
-function proceedToNextRound() {
-    const currentMatches = tournamentState.bracket;
-    
-    // Get winners and create next round matches
-    const nextRoundTeams = currentMatches.map((match, idx) => {
-        const matchId = `match_${tournamentState.currentRound}_${idx}`;
-        const winnerId = tournamentState.matchResults[matchId];
-        
-        // Find the winner team object
-        if (match.team1?.id === winnerId) return match.team1;
-        if (match.team2?.id === winnerId) return match.team2;
-        return null;
-    }).filter(t => t !== null);
-    
-    if (nextRoundTeams.length === 1) {
-        // Tournament is over!
-        const champion = nextRoundTeams[0];
-        const championName = champion.team_name || champion.participant_name || champion.name;
-        showTournamentMessage(`🏆 Tournament Complete! ${championName} is the Champion! 🏆`, 'success');
-        
-        const container = document.getElementById('bracketContainer');
-        container.innerHTML = `
-            <div style="padding: 40px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                        color: white; border-radius: 8px; margin: 20px 0;">
-                <h2 style="font-size: 2em; margin: 0;">🏆 CHAMPION 🏆</h2>
-                <h1 style="font-size: 3em; margin: 10px 0;">${championName}</h1>
-                <button onclick="resetTournament()" class="btn btn-secondary" style="margin-top: 20px;">Start New Tournament</button>
-            </div>
-        `;
+function minimizeMatchVideo() {
+    tournamentState.expandedMatchId = null;
+    renderMatches(tournamentState.matches);
+}
+
+async function saveMatchLiveUrl(matchId) {
+    const input = document.getElementById(`matchLiveUrl-${matchId}`);
+    const value = input ? input.value.trim() : '';
+
+    const result = await adminApi.updateMatchLiveUrl(matchId, value);
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Failed to save live link.', 'error');
         return;
     }
-    
-    // Generate next round bracket
-    tournamentState.bracket = generateBracketStructure(nextRoundTeams);
-    tournamentState.currentRound++;
-    
-    renderBracketWithSelection(tournamentState.bracket, tournamentState.currentRound);
-    showTournamentMessage(`Proceeding to Round ${tournamentState.currentRound}...`, 'success');
+
+    showTournamentMessage('Live link updated.', 'success');
+    await loadMatchesForEvent(tournamentState.selectedEventId);
 }
 
-// Reset tournament
-function resetTournament() {
-    tournamentState.currentRound = 1;
-    tournamentState.matchResults = {};
-    tournamentState.bracket = [];
-    document.getElementById('bracketContainer').innerHTML = '';
-    showTournamentMessage('Tournament reset. Generate a new bracket to start.', 'info');
+async function removeMatchLiveUrl(matchId) {
+    const result = await adminApi.updateMatchLiveUrl(matchId, '');
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Failed to remove live link.', 'error');
+        return;
+    }
+
+    if (tournamentState.expandedMatchId === Number(matchId)) {
+        tournamentState.expandedMatchId = null;
+    }
+
+    showTournamentMessage('Live link removed.', 'success');
+    await loadMatchesForEvent(tournamentState.selectedEventId);
 }
 
-// Show tournament message
+async function updateMatchStatus(matchId) {
+    const select = document.getElementById(`matchStatus-${matchId}`);
+    const status = select ? select.value : '';
+
+    const result = await adminApi.updateMatchStatus(matchId, status);
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Failed to update match status.', 'error');
+        return;
+    }
+
+    showTournamentMessage('Match status updated.', 'success');
+    await loadMatchesForEvent(tournamentState.selectedEventId);
+}
+
+async function saveMatchWinner(matchId) {
+    const winnerSelect = document.getElementById(`matchWinner-${matchId}`);
+    const winnerSide = winnerSelect ? winnerSelect.value : 'none';
+    const result = await adminApi.updateMatchWinner(matchId, winnerSide);
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Failed to update winner.', 'error');
+        return;
+    }
+    showTournamentMessage('Winner updated.', 'success');
+    await loadMatchesForEvent(tournamentState.selectedEventId);
+}
+
+async function revertMatchWinner(matchId) {
+    const result = await adminApi.updateMatchWinner(matchId, 'none');
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Failed to revert winner.', 'error');
+        return;
+    }
+    const winnerSelect = document.getElementById(`matchWinner-${matchId}`);
+    if (winnerSelect) winnerSelect.value = 'none';
+    showTournamentMessage('Winner reverted successfully.', 'success');
+    await loadMatchesForEvent(tournamentState.selectedEventId);
+}
+
+async function saveMatchOpponents(matchId) {
+    const teamAInput = document.getElementById(`matchTeamA-${matchId}`);
+    const teamBInput = document.getElementById(`matchTeamB-${matchId}`);
+    const teamA = teamAInput ? teamAInput.value.trim() : '';
+    const teamB = teamBInput ? teamBInput.value.trim() : '';
+
+    if (!teamA || !teamB) {
+        showTournamentMessage('Both Team A and Team B are required.', 'error');
+        return;
+    }
+
+    const current = tournamentState.matches.find((m) => Number(m.id) === Number(matchId));
+    const payload = {
+        teamA,
+        teamB,
+        teamA_participant_id: current?.teamA === teamA ? current?.teamA_participant_id : null,
+        teamB_participant_id: current?.teamB === teamB ? current?.teamB_participant_id : null
+    };
+
+    const result = await adminApi.updateMatchOpponents(matchId, payload);
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Failed to update opponents.', 'error');
+        return;
+    }
+    showTournamentMessage('Opponents updated. Winner was reset to avoid mismatch.', 'success');
+    await loadMatchesForEvent(tournamentState.selectedEventId);
+}
+
 function showTournamentMessage(message, type = 'info') {
     const messageDiv = document.getElementById('tournamentMessage');
+    if (!messageDiv) return;
+
     messageDiv.textContent = message;
     messageDiv.style.display = 'block';
-    messageDiv.style.backgroundColor = type === 'error' ? '#fee' : type === 'success' ? '#efe' : '#eef';
-    messageDiv.style.color = type === 'error' ? '#c33' : type === 'success' ? '#3c3' : '#33c';
-    messageDiv.style.borderLeft = `4px solid ${type === 'error' ? '#c33' : type === 'success' ? '#3c3' : '#33c'}`;
-    
-    // Auto-hide after 5 seconds
+    messageDiv.style.backgroundColor = type === 'error' ? '#fee2e2' : type === 'success' ? '#dcfce7' : '#eff6ff';
+    messageDiv.style.color = type === 'error' ? '#b91c1c' : type === 'success' ? '#166534' : '#1d4ed8';
+    messageDiv.style.borderLeft = `4px solid ${type === 'error' ? '#b91c1c' : type === 'success' ? '#166534' : '#1d4ed8'}`;
+
     setTimeout(() => {
         messageDiv.style.display = 'none';
-    }, 5000);
+    }, 4500);
 }
 
-// Close all modals
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function escapeAttr(value) {
+    return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
 function closeAllModals() {
-    document.querySelectorAll('.modal').forEach(modal => {
+    document.querySelectorAll('.modal').forEach((modal) => {
         modal.style.display = 'none';
     });
 }
 
-// Initialize when page loads
+window.removeTeamFromTournament = removeTeamFromTournament;
+window.toggleMatchVideo = toggleMatchVideo;
+window.minimizeMatchVideo = minimizeMatchVideo;
+window.saveMatchLiveUrl = saveMatchLiveUrl;
+window.removeMatchLiveUrl = removeMatchLiveUrl;
+window.updateMatchStatus = updateMatchStatus;
+window.saveMatchWinner = saveMatchWinner;
+window.revertMatchWinner = revertMatchWinner;
+window.saveMatchOpponents = saveMatchOpponents;
+
 document.addEventListener('DOMContentLoaded', () => {
     initTournament();
     updateBracketButtonLabel();
