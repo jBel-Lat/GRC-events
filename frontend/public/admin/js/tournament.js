@@ -454,8 +454,8 @@ function renderMatches(matches) {
         <div class="admin-bracket-row">
             ${upperSection}
             ${lowerSection}
+            ${finalsSection}
         </div>
-        ${finalsSection}
     `;
 }
 
