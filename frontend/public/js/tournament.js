@@ -254,6 +254,7 @@ function renderMatchCard(match) {
     const id = Number(match.id);
     const status = String(match.status || 'pending').toLowerCase();
     const isOpen = state.expandedMatchId === id;
+    const hasVideo = Boolean(String(match.facebook_live_url || '').trim());
     const teamAColor = getTeamColor(match.teamA || '');
     const teamBColor = getTeamColor(match.teamB || '');
     const matchBorder = getMatchBorderColor(match.id);
@@ -274,7 +275,9 @@ function renderMatchCard(match) {
             ${winner}
             ${series}
             <div class="match-source-row">${sourceA}${sourceB}</div>
-            <div class="match-actions"><button class="btn btn-primary" onclick="toggleVideo(${id})">Watch Video</button></div>
+            <div class="match-actions">
+                <button class="btn btn-primary" onclick="${hasVideo ? `toggleVideo(${id})` : 'return false;'}" ${hasVideo ? '' : 'disabled'}>${hasVideo ? 'Watch Video' : 'No Video'}</button>
+            </div>
             <div class="video-panel ${isOpen ? 'open' : ''}">${isOpen ? renderVideoPanel(match) : ''}</div>
         </article>
     `;

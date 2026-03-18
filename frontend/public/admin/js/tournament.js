@@ -446,11 +446,17 @@ function renderMatches(matches) {
         return `<div class="admin-bracket-type-block"><h3 class="admin-bracket-type-title">${escapeHtml(title)}</h3>${rounds}</div>`;
     };
 
-    container.innerHTML = [
-        section('UPPER BRACKET', byType.upper),
-        section('LOWER BRACKET', byType.lower),
-        section('FINALS', [...byType.grand_final, ...byType.grand_final_reset])
-    ].join('');
+    const upperSection = section('UPPER BRACKET', byType.upper);
+    const lowerSection = section('LOWER BRACKET', byType.lower);
+    const finalsSection = section('FINALS', [...byType.grand_final, ...byType.grand_final_reset]);
+
+    container.innerHTML = `
+        <div class="admin-bracket-row">
+            ${upperSection}
+            ${lowerSection}
+        </div>
+        ${finalsSection}
+    `;
 }
 
 function renderBracketFlow(matches) {
