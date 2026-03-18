@@ -1108,6 +1108,12 @@
     flex: 0 0 auto;
 }
 
+.admin-bracket-tab.active {
+    background: #9B0F06 !important;
+    border-color: #9B0F06 !important;
+    color: #fff !important;
+}
+
 .admin-match-card {
     border: 1px solid #dbe3ef;
     border-radius: 12px;

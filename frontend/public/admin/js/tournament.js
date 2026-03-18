@@ -9,7 +9,8 @@ let tournamentState = {
     eventTeams: [],
     matches: [],
     expandedMatchId: null,
-    autoRefreshTimer: null
+    autoRefreshTimer: null,
+    activeBracketTab: 'upper'
 };
 
 const TEAM_COLOR_PALETTE = [
@@ -35,6 +36,13 @@ function setupEventListeners() {
     document.getElementById('advanceRoundBtn')?.addEventListener('click', advanceToNextRound);
 
     document.getElementById('bracketTypeSelect')?.addEventListener('change', updateBracketButtonLabel);
+    document.querySelectorAll('.admin-bracket-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const tab = String(btn.dataset.bracketTab || '').toLowerCase();
+            if (!tab) return;
+            setActiveBracketTab(tab);
+        });
+    });
 
     document.querySelectorAll('.modal .close-btn').forEach((btn) => btn.addEventListener('click', closeAllModals));
     document.querySelectorAll('.close-btn-action').forEach((btn) => btn.addEventListener('click', closeAllModals));
@@ -127,6 +135,7 @@ async function handleTournamentEventSelect(e) {
     const eventId = Number(e.target.value) || null;
     tournamentState.selectedEventId = eventId;
     tournamentState.expandedMatchId = null;
+    tournamentState.activeBracketTab = 'upper';
 
     const teamsArea = document.getElementById('teamsManagementArea');
     const bracketArea = document.getElementById('bracketGenerationArea');
@@ -378,12 +387,14 @@ function renderMatches(matches) {
     updateAdvanceRoundButton(matches);
 
     if (!matches.length) {
+        setBracketTabsVisibility(false);
         container.innerHTML = '<p class="tourney-empty-note">No matches yet. Generate a bracket to create match cards.</p>';
         return;
     }
 
     const hasDouble = matches.some((m) => ['upper', 'lower', 'grand_final', 'grand_final_reset'].includes(String(m.bracket_type || '').toLowerCase()));
     const maxRound = Math.max(...matches.map((m) => Number(m.round_number || 1)));
+    setBracketTabsVisibility(hasDouble);
 
     if (!hasDouble) {
         const grouped = matches.reduce((acc, match) => {
@@ -446,17 +457,14 @@ function renderMatches(matches) {
         return `<div class="admin-bracket-type-block ${escapeHtml(typeClass)}"><h3 class="admin-bracket-type-title">${escapeHtml(title)}</h3>${rounds}</div>`;
     };
 
-    const upperSection = section('UPPER BRACKET', byType.upper, 'bracket-upper');
-    const lowerSection = section('LOWER BRACKET', byType.lower, 'bracket-lower');
-    const finalsSection = section('FINALS', [...byType.grand_final, ...byType.grand_final_reset], 'bracket-finals');
-
-    container.innerHTML = `
-        <div class="admin-bracket-row">
-            ${upperSection}
-            ${lowerSection}
-            ${finalsSection}
-        </div>
-    `;
+    const tab = tournamentState.activeBracketTab;
+    if (tab === 'lower') {
+        container.innerHTML = section('LOWER BRACKET', byType.lower, 'bracket-lower');
+    } else if (tab === 'finals') {
+        container.innerHTML = section('FINALS', [...byType.grand_final, ...byType.grand_final_reset], 'bracket-finals');
+    } else {
+        container.innerHTML = section('UPPER BRACKET', byType.upper, 'bracket-upper');
+    }
 }
 
 function renderBracketFlow(matches) {
@@ -539,11 +547,30 @@ function renderBracketFlow(matches) {
         return;
     }
 
-    flowContainer.innerHTML = [
-        renderFlowGroup('UPPER BRACKET FLOW', byType.upper),
-        renderFlowGroup('LOWER BRACKET FLOW', byType.lower),
-        renderFlowGroup('FINALS FLOW', byType.finals)
-    ].join('');
+    const tab = tournamentState.activeBracketTab;
+    if (tab === 'lower') {
+        flowContainer.innerHTML = renderFlowGroup('LOWER BRACKET FLOW', byType.lower);
+    } else if (tab === 'finals') {
+        flowContainer.innerHTML = renderFlowGroup('FINALS FLOW', byType.finals);
+    } else {
+        flowContainer.innerHTML = renderFlowGroup('UPPER BRACKET FLOW', byType.upper);
+    }
+}
+
+function setActiveBracketTab(tabName) {
+    const normalized = ['upper', 'lower', 'finals'].includes(tabName) ? tabName : 'upper';
+    tournamentState.activeBracketTab = normalized;
+    document.querySelectorAll('.admin-bracket-tab').forEach((btn) => {
+        const tab = String(btn.dataset.bracketTab || '').toLowerCase();
+        btn.classList.toggle('active', tab === normalized);
+    });
+    renderMatches(tournamentState.matches || []);
+}
+
+function setBracketTabsVisibility(isVisible) {
+    const tabs = document.getElementById('adminBracketTabs');
+    if (!tabs) return;
+    tabs.style.display = isVisible ? 'flex' : 'none';
 }
 
 function updateAdvanceRoundButton(matches) {

@@ -256,6 +256,11 @@
                                 <button id="refreshMatchesBtn" class="btn btn-secondary">Refresh Matches</button>
                                 <button id="advanceRoundBtn" class="btn btn-primary" style="display:none;">Proceed to Next Round</button>
                             </div>
+                            <div id="adminBracketTabs" style="display:none; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                                <button type="button" class="btn btn-secondary admin-bracket-tab active" data-bracket-tab="upper">Upper Bracket</button>
+                                <button type="button" class="btn btn-secondary admin-bracket-tab" data-bracket-tab="lower">Lower Bracket</button>
+                                <button type="button" class="btn btn-secondary admin-bracket-tab" data-bracket-tab="finals">Finals</button>
+                            </div>
                             <p style="margin:0 0 10px 0; color:#64748b; font-size:0.9em;">Each match below has its own stream link, status, and winner progression. Double elimination shows Upper, Lower, and Finals.</p>
                             <div id="bracketFlowContainer" class="admin-flow-board"></div>
                             <div id="bracketContainer" class="bracket"></div>
