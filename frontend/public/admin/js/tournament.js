@@ -568,16 +568,18 @@ function renderMatchCard(match, maxRound) {
     const matchId = Number(match.id);
     const isExpanded = tournamentState.expandedMatchId === matchId;
     const status = String(match.status || 'pending').toLowerCase();
-    const isLockedRound = false;
+    const hasWinner = Boolean(match.winner_team_name) || Number(match.winner_team_id || 0) > 0;
+    const isLockedRound = status === 'finished' && hasWinner;
     const teamAColor = getTeamColor(match.teamA || '');
     const teamBColor = getTeamColor(match.teamB || '');
     const matchBorder = getMatchBorderColor(match.id);
     const statusColor = status === 'ongoing' ? '#b91c1c' : status === 'finished' ? '#166534' : '#475569';
     const hasLive = Boolean((match.facebook_live_url || '').trim());
     const showLiveBadge = status === 'ongoing' && hasLive;
-    const winnerSide = Number(match.winner_team_id) && Number(match.winner_team_id) === Number(match.teamA_participant_id)
+    const winnerName = String(match.winner_team_name || '').trim();
+    const winnerSide = winnerName && winnerName === String(match.teamA || '').trim()
         ? 'teamA'
-        : (Number(match.winner_team_id) && Number(match.winner_team_id) === Number(match.teamB_participant_id) ? 'teamB' : 'none');
+        : (winnerName && winnerName === String(match.teamB || '').trim() ? 'teamB' : 'none');
     const winnerLabel = winnerSide === 'teamA'
         ? `${match.teamA} (Team A)`
         : (winnerSide === 'teamB' ? `${match.teamB} (Team B)` : 'Not selected');
@@ -604,6 +606,7 @@ function renderMatchCard(match, maxRound) {
                 <div class="admin-match-badges">
                     <span class="admin-status-pill" style="background:#334155;">${escapeHtml(bracketLabel)}</span>
                     <span class="admin-status-pill" style="background:${statusColor};">${escapeHtml(status)}</span>
+                    ${isLockedRound ? '<span class="admin-live-pill" style="background:#64748b;">ROUND ENDED</span>' : ''}
                     ${showLiveBadge ? '<span class="admin-live-pill">LIVE</span>' : ''}
                 </div>
             </div>
@@ -650,7 +653,7 @@ function renderMatchCard(match, maxRound) {
                 <button class="btn btn-primary tourney-mini-btn" onclick="saveMatchWinner(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Winner</button>
                 <button class="btn btn-secondary tourney-mini-btn" onclick="revertMatchWinner(${matchId})" ${isLockedRound ? 'disabled' : ''}>Revert Winner</button>
             </div>
-            ${isLockedRound ? '<div class="admin-lock-note">Locked: previous round is finalized.</div>' : ''}
+            ${isLockedRound ? '<div class="admin-lock-note">Round ended: controls are disabled.</div>' : ''}
 
             <div class="match-video-panel ${isExpanded ? 'expanded' : ''}" style="max-height:${isExpanded ? '700px' : '0'}; opacity:${isExpanded ? '1' : '0'};">
                 ${isExpanded ? renderMatchVideoPanel(match) : ''}

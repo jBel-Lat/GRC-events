@@ -119,11 +119,12 @@ function renderMatches() {
 }
 
 function renderTypeSection(title, matches) {
-    if (!matches.length) return '';
+    const visibleMatches = matches.filter((m) => !isHiddenMatch(m));
+    if (!visibleMatches.length) return '';
     return `
         <section class="round-section">
             <h2 class="round-title">${escapeHtml(title)}</h2>
-            <div class="match-list">${matches.map(renderMatchCard).join('')}</div>
+            <div class="match-list">${visibleMatches.map(renderMatchCard).join('')}</div>
         </section>
     `;
 }
@@ -166,7 +167,7 @@ function renderBracketBoard(matches) {
 }
 
 function renderFlowSection(title, matches, sectionClass = '') {
-    const grouped = matches.reduce((acc, m) => {
+    const grouped = matches.filter((m) => !isHiddenMatch(m)).reduce((acc, m) => {
         const round = Number(m.round_number || 1);
         if (!acc[round]) acc[round] = [];
         acc[round].push(m);
@@ -183,9 +184,9 @@ function renderFlowSection(title, matches, sectionClass = '') {
                 const winner = match.winner_team_name ? `<div class="flow-winner-text">Winner: ${escapeHtml(match.winner_team_name)}</div>` : '';
                 return `
                     <div class="flow-match ${status}">
-                        <div class="flow-team">${escapeHtml(match.teamA || 'TBD')}</div>
+                        <div class="flow-team">${escapeHtml(getVisibleTeamName(match.teamA))}</div>
                         <div class="flow-vs">vs</div>
-                        <div class="flow-team">${escapeHtml(match.teamB || 'TBD')}</div>
+                        <div class="flow-team">${escapeHtml(getVisibleTeamName(match.teamB))}</div>
                         <div class="flow-meta"><span>${escapeHtml(status)}</span></div>
                         ${winner}
                     </div>
@@ -217,9 +218,9 @@ function renderBracketMatch(match) {
 
     return `
         <article class="bracket-match ${status === 'ongoing' ? 'ongoing' : ''}" style="border:1px solid ${matchBorder}; border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor}; box-shadow:0 0 0 1px ${matchBorder}33;">
-            <div class="bracket-team"><span class="team-indicator" style="background:${teamAColor};"></span>${escapeHtml(match.teamA || 'TBD')}</div>
+            <div class="bracket-team"><span class="team-indicator" style="background:${teamAColor};"></span>${escapeHtml(getVisibleTeamName(match.teamA))}</div>
             <div class="bracket-vs">VS</div>
-            <div class="bracket-team"><span class="team-indicator" style="background:${teamBColor};"></span>${escapeHtml(match.teamB || 'TBD')}</div>
+            <div class="bracket-team"><span class="team-indicator" style="background:${teamBColor};"></span>${escapeHtml(getVisibleTeamName(match.teamB))}</div>
             <div class="bracket-meta"><span>${escapeHtml(match.round_name || '')}</span><span class="bracket-status-pill ${escapeHtml(status)}">${escapeHtml(status)}</span></div>
             ${series}
             ${winner}
@@ -266,7 +267,7 @@ function renderMatchCard(match) {
             <div class="match-header">
                 <div>
                     <div class="match-id">Match #${Number(match.match_order || 0)}</div>
-                    <div class="match-teams"><span class="team-indicator" style="background:${teamAColor};"></span>${escapeHtml(match.teamA)} <span>vs</span> <span class="team-indicator" style="background:${teamBColor};"></span>${escapeHtml(match.teamB)}</div>
+                    <div class="match-teams"><span class="team-indicator" style="background:${teamAColor};"></span>${escapeHtml(getVisibleTeamName(match.teamA))} <span>vs</span> <span class="team-indicator" style="background:${teamBColor};"></span>${escapeHtml(getVisibleTeamName(match.teamB))}</div>
                 </div>
                 <div class="badge-row"><span class="badge ${escapeHtml(status)}">${escapeHtml(status)}</span></div>
             </div>
@@ -334,6 +335,19 @@ function isMatchActivated(match) {
         status === 'ongoing' ||
         status === 'finished'
     );
+}
+
+function isHiddenMatch(match) {
+    const teamA = String(match.teamA || '').trim().toUpperCase();
+    const teamB = String(match.teamB || '').trim().toUpperCase();
+    const status = String(match.status || '').toLowerCase();
+    const hasWinner = Boolean(match.winner_team_name);
+    return teamA === 'TBD' && teamB === 'TBD' && status === 'pending' && !hasWinner;
+}
+
+function getVisibleTeamName(name) {
+    const value = String(name || '').trim();
+    return value.toUpperCase() === 'TBD' ? '' : value;
 }
 
 function byRoundOrder(a, b) {
