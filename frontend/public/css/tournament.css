@@ -404,6 +404,21 @@ body {
     padding: 14px;
 }
 
+.round-section.round-upper {
+    border-color: #2563eb;
+    background: linear-gradient(180deg, rgba(30, 64, 175, 0.24), rgba(10, 17, 30, 0.96));
+}
+
+.round-section.round-lower {
+    border-color: #7c3aed;
+    background: linear-gradient(180deg, rgba(91, 33, 182, 0.24), rgba(10, 17, 30, 0.96));
+}
+
+.round-section.round-finals {
+    border-color: #d97706;
+    background: linear-gradient(180deg, rgba(180, 83, 9, 0.24), rgba(10, 17, 30, 0.96));
+}
+
 .round-title {
     margin: 0 0 12px;
     color: #e6f0ff;

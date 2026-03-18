@@ -111,18 +111,18 @@ function renderMatches() {
 
         return `
             <section class="round-section"><h2 class="round-title">${escapeHtml(eventName)} - Double Elimination</h2></section>
-            ${renderTypeSection('UPPER BRACKET', upper)}
-            ${renderTypeSection('LOWER BRACKET', lower)}
-            ${renderTypeSection('FINALS', finals)}
+            ${renderTypeSection('UPPER BRACKET', upper, 'round-upper')}
+            ${renderTypeSection('LOWER BRACKET', lower, 'round-lower')}
+            ${renderTypeSection('FINALS', finals, 'round-finals')}
         `;
     }).join('');
 }
 
-function renderTypeSection(title, matches) {
+function renderTypeSection(title, matches, typeClass = '') {
     const visibleMatches = matches.filter((m) => !isHiddenMatch(m));
     if (!visibleMatches.length) return '';
     return `
-        <section class="round-section">
+        <section class="round-section ${escapeHtml(typeClass)}">
             <h2 class="round-title">${escapeHtml(title)}</h2>
             <div class="match-list">${visibleMatches.map(renderMatchCard).join('')}</div>
         </section>

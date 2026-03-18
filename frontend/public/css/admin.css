@@ -1050,6 +1050,33 @@
     color: #cbd5e1;
 }
 
+.admin-bracket-type-block.bracket-upper {
+    border-color: #1d4ed8;
+    background: linear-gradient(180deg, rgba(30, 64, 175, 0.22) 0%, rgba(2, 6, 23, 0.7) 100%);
+}
+
+.admin-bracket-type-block.bracket-upper .admin-bracket-type-title {
+    color: #bfdbfe;
+}
+
+.admin-bracket-type-block.bracket-lower {
+    border-color: #7c3aed;
+    background: linear-gradient(180deg, rgba(91, 33, 182, 0.24) 0%, rgba(2, 6, 23, 0.7) 100%);
+}
+
+.admin-bracket-type-block.bracket-lower .admin-bracket-type-title {
+    color: #ddd6fe;
+}
+
+.admin-bracket-type-block.bracket-finals {
+    border-color: #b45309;
+    background: linear-gradient(180deg, rgba(180, 83, 9, 0.24) 0%, rgba(2, 6, 23, 0.7) 100%);
+}
+
+.admin-bracket-type-block.bracket-finals .admin-bracket-type-title {
+    color: #fde68a;
+}
+
 .admin-bracket-row {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

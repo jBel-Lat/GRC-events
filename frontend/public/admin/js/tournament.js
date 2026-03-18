@@ -420,7 +420,7 @@ function renderMatches(matches) {
         if (byType[key]) byType[key].push(m);
     });
 
-    const section = (title, arr) => {
+    const section = (title, arr, typeClass = '') => {
         if (!arr.length) return '';
         const groupedByRound = arr.reduce((acc, match) => {
             const key = `${match.round_number || 1}::${match.round_name || `Round ${match.round_number || 1}`}`;
@@ -443,12 +443,12 @@ function renderMatches(matches) {
                     </section>
                 `;
             }).join('');
-        return `<div class="admin-bracket-type-block"><h3 class="admin-bracket-type-title">${escapeHtml(title)}</h3>${rounds}</div>`;
+        return `<div class="admin-bracket-type-block ${escapeHtml(typeClass)}"><h3 class="admin-bracket-type-title">${escapeHtml(title)}</h3>${rounds}</div>`;
     };
 
-    const upperSection = section('UPPER BRACKET', byType.upper);
-    const lowerSection = section('LOWER BRACKET', byType.lower);
-    const finalsSection = section('FINALS', [...byType.grand_final, ...byType.grand_final_reset]);
+    const upperSection = section('UPPER BRACKET', byType.upper, 'bracket-upper');
+    const lowerSection = section('LOWER BRACKET', byType.lower, 'bracket-lower');
+    const finalsSection = section('FINALS', [...byType.grand_final, ...byType.grand_final_reset], 'bracket-finals');
 
     container.innerHTML = `
         <div class="admin-bracket-row">
