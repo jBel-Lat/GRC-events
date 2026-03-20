@@ -63,6 +63,9 @@ app.get(`${ADMIN_ROUTE}/`, (req, res) => {
 app.get(`${ADMIN_ROUTE}/dashboard.html`, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/dashboard.html'));
 });
+app.get([`${ADMIN_ROUTE}/bracket-maker.html`, '/bracket-maker.html'], (req, res) => {
+    res.sendFile(path.join(__dirname, '../bracket-maker (1).html'));
+});
 app.get(['/tournament', '/tournament/', '/tournament/index.html'], (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/tournament.html'));
 });
