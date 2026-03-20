@@ -11,7 +11,6 @@ const panelistRoutes = require('./routes/panelistRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const submissionRoutes = require('./routes/submissionRoutes');
 const matchRoutes = require('./routes/matchRoutes');
-const { adminPageAuthMiddleware } = require('./middleware/auth');
 
 const app = express();
 
@@ -61,7 +60,7 @@ app.get(ADMIN_ROUTE, (req, res) => {
 app.get(`${ADMIN_ROUTE}/`, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/index.html'));
 });
-app.get(`${ADMIN_ROUTE}/dashboard.html`, adminPageAuthMiddleware, (req, res) => {
+app.get(`${ADMIN_ROUTE}/dashboard.html`, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/dashboard.html'));
 });
 app.get(['/tournament', '/tournament/', '/tournament/index.html'], (req, res) => {
